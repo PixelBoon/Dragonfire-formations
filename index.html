@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Emberline — Dragon Formation Forge</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root{
+  --obsidian:#0B0D10;
+  --panel:#151A20;
+  --panel-raised:#1C232B;
+  --line: rgba(233,226,209,0.09);
+  --ember:#E85D2C;
+  --ember-dim:#7A3620;
+  --gold:#C9A227;
+  --ice:#4FA8D8;
+  --parchment:#EDE6D6;
+  --muted:#8B92A0;
+  --danger:#B23A3A;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(ellipse at top left, rgba(232,93,44,0.06), transparent 45%),
+    radial-gradient(ellipse at bottom right, rgba(79,168,216,0.05), transparent 50%),
+    var(--obsidian);
+  color:var(--parchment);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+}
+.mono{font-family:'JetBrains Mono',monospace;}
+h1,h2,h3,.display{font-family:'Cinzel',serif;letter-spacing:0.04em;}
+
+/* layout */
+.app{display:grid;grid-template-columns:340px 1fr;gap:1px;background:var(--line);min-height:100vh;}
+@media (max-width:900px){.app{grid-template-columns:1fr;}}
+
+.side{background:var(--obsidian);padding:20px 16px;display:flex;flex-direction:column;gap:14px;}
+.main{background:var(--obsidian);padding:24px 28px;}
+
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.brand-mark{width:34px;height:34px;flex:none;}
+.brand h1{font-size:19px;margin:0;color:var(--parchment);text-transform:uppercase;}
+.brand span{display:block;font-family:'Inter';font-size:10.5px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-top:1px;}
+
+.roster-head{display:flex;justify-content:space-between;align-items:baseline;}
+.roster-head h2{font-size:13px;margin:0;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;}
+.count-badge{font-family:'JetBrains Mono';font-size:11px;color:var(--ember);}
+
+.btn{
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--parchment);
+  padding:9px 14px;
+  border-radius:3px;
+  font-family:'Inter';font-size:13px;font-weight:500;
+  cursor:pointer;
+  transition:border-color .15s, background .15s;
+}
+.btn:hover{border-color:var(--ember-dim);background:var(--panel-raised);}
+.btn-primary{
+  background:linear-gradient(135deg,#E85D2C,#B23A1E);
+  border:none;color:#100a08;font-weight:600;
+  box-shadow:0 0 0 rgba(232,93,44,0);
+  transition:box-shadow .2s, transform .1s;
+}
+.btn-primary:hover{box-shadow:0 0 22px rgba(232,93,44,0.35);}
+.btn-primary:active{transform:translateY(1px);}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted);}
+.btn-ghost:hover{color:var(--parchment);border-color:var(--muted);}
+.btn-sm{padding:5px 9px;font-size:11.5px;}
+.btn-danger{color:var(--danger);border-color:rgba(178,58,58,0.4);}
+
+.dragon-list{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:calc(100vh - 260px);padding-right:2px;}
+.dragon-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:4px;
+  padding:10px 12px;
+  cursor:pointer;
+  position:relative;
+}
+.dragon-card.selected{border-color:var(--ember);background:var(--panel-raised);}
+.dc-top{display:flex;justify-content:space-between;align-items:center;}
+.dc-name{font-size:13.5px;font-weight:600;}
+.dc-power{font-family:'JetBrains Mono';font-size:12px;color:var(--gold);}
+.dc-meta{font-size:10.5px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.04em;}
+.rarity-tag{padding:1px 6px;border-radius:2px;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;}
+.rarity-Common{background:#2b2f36;color:#a9b0bb;}
+.rarity-Rare{background:#1c3a52;color:#8fc4e8;}
+.rarity-Epic{background:#3a2354;color:#c79ef0;}
+.rarity-Legendary{background:#4a3a10;color:var(--gold);}
+.rarity-Mythic{background:#4a1414;color:#ff8a6b;}
+
+.empty-note{color:var(--muted);font-size:12.5px;line-height:1.5;padding:16px 4px;text-align:center;}
+
+/* controls bar */
+.controls{
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:16px 18px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;margin-bottom:22px;
+}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+select,input[type=text],input[type=number]{
+  background:var(--obsidian);border:1px solid var(--line);color:var(--parchment);
+  padding:7px 9px;border-radius:3px;font-family:'Inter';font-size:13px;
+}
+select:focus,input:focus{outline:1px solid var(--ember-dim);}
+.checkfield{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);}
+.checkfield input{accent-color:var(--ember);}
+
+h2.section-title{font-size:14px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 14px;display:flex;align-items:center;gap:10px;}
+h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
+
+.summary-bar{
+  display:flex;gap:36px;padding:16px 20px;margin-bottom:22px;
+  background:linear-gradient(135deg, rgba(232,93,44,0.08), rgba(79,168,216,0.05));
+  border:1px solid var(--line);border-radius:6px;
+}
+.summary-val{font-family:'JetBrains Mono';font-size:22px;font-weight:600;color:var(--parchment);}
+.summary-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:2px;}
+
+/* compare formations */
+.compare-pickers{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+.compare-side{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;}
+.compare-side-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px;}
+.dragon-select{width:100%;}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+.compare-label{font-family:'Cinzel';font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--parchment);}
+.formation-card-full.compare-winner{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold), 0 0 18px rgba(201,162,39,.15);}
+.compare-verdict{margin-top:16px;padding:14px 18px;background:var(--panel);border:1px solid var(--line);border-radius:6px;font-size:14px;text-align:center;color:var(--parchment);}
+@media (max-width:900px){.compare-grid{grid-template-columns:1fr;} .compare-pickers{grid-template-columns:1fr;}}
+
+/* formation cards */
+.formations{display:flex;flex-direction:column;gap:14px;}
+.formation-card-full{
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:16px 18px;
+}
+.fc-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.fc-troop{flex:1;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:10px;}
+.fc-synergy{font-family:'JetBrains Mono';font-size:12.5px;font-weight:600;}
+.fc-total{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.fc-total .val{font-family:'JetBrains Mono';font-size:22px;color:var(--gold);font-weight:600;}
+.slot-role{font-size:10px;color:var(--ice);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+.why-box{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);}
+.why-title{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;}
+.why-line{font-size:12px;color:#8fd99c;line-height:1.7;}
+.why-line.why-neg{color:#e08a8a;}
+.rank-badge{
+  width:40px;height:40px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #E85D2C, #7A2F16 75%);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cinzel';font-weight:700;font-size:15px;color:#1a0d06;
+  box-shadow: inset 0 0 6px rgba(0,0,0,.4), 0 0 14px rgba(232,93,44,.25);
+}
+.rank-badge.siege-badge{
+  background:radial-gradient(circle at 35% 30%, #4FA8D8, #1c4a63 75%);
+  box-shadow: inset 0 0 6px rgba(0,0,0,.4), 0 0 14px rgba(79,168,216,.3);
+}
+.rank-badge.dps-badge{
+  background:radial-gradient(circle at 35% 30%, #C9A227, #6b5710 75%);
+  box-shadow: inset 0 0 6px rgba(0,0,0,.4), 0 0 14px rgba(201,162,39,.3);
+}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.slot{background:var(--panel-raised);border:1px solid var(--line);border-radius:4px;padding:8px 10px;}
+.slot-pos{font-size:9px;color:var(--ice);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;}
+.slot-name{font-size:13px;font-weight:600;}
+.slot-stats{font-family:'JetBrains Mono';font-size:11px;color:var(--muted);margin-top:3px;}
+.formation-score{text-align:right;}
+.formation-score .val{font-family:'JetBrains Mono';font-size:20px;color:var(--gold);font-weight:600;}
+.formation-score .lbl{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.formation-actions{display:flex;gap:6px;margin-top:8px;justify-content:flex-end;}
+
+/* saved */
+.saved-list{display:flex;flex-direction:column;gap:8px;}
+.saved-item{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(5,6,7,0.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:8px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;padding:24px 26px;}
+.modal h2{margin-top:0;font-size:16px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.field-full{grid-column:1/-1;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.subhead{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin:18px 0 8px;}
+.skill-row{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-bottom:8px;}
+.skill-row label{flex:1;color:var(--parchment);}
+.skill-row input[type=range]{width:120px;accent-color:var(--ember);}
+.skill-row .rv{width:36px;text-align:right;font-family:'JetBrains Mono';color:var(--gold);font-size:12px;}
+
+.top-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.hint{color:var(--muted);font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="side">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40"><defs><radialGradient id="fg" cx="35%" cy="30%"><stop offset="0%" stop-color="#ff8a4c"/><stop offset="60%" stop-color="#E85D2C"/><stop offset="100%" stop-color="#5a2010"/></radialGradient></defs><path d="M20 3 C11 8 6 16 6 24 C6 32 12 37 20 37 C28 37 34 32 34 24 C34 16 29 8 20 3 Z" fill="url(#fg)" stroke="#2a1208" stroke-width="1"/><path d="M20 10 L20 30 M13 17 L27 17" stroke="#1a0d06" stroke-width="1.4" opacity=".5"/></svg>
+      <div><h1>Emberline</h1><span>Formation Forge</span></div>
+    </div>
+
+    <div class="roster-head">
+      <h2>Your Dragons</h2>
+      <span class="count-badge" id="rosterCount">0</span>
+    </div>
+
+    <button class="btn btn-primary" onclick="openDragonModal()">+ Add Dragon</button>
+    <button class="btn btn-ghost" onclick="openImportModal()">⇪ Import roster JSON</button>
+    <button class="btn btn-ghost" onclick="loadSample()">Load sample roster</button>
+    <button class="btn btn-ghost btn-danger" onclick="clearRoster()">🗑 Clear all dragons</button>
+
+    <div id="dragonList" class="dragon-list"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <h2 class="section-title">Optimized Formations</h2>
+
+    <div class="controls">
+      <div class="field">
+        <label># Max Power Armies</label>
+        <select id="numPower">
+          <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===3?'selected':''}>${n}</option>`).join(''));</script>
+        </select>
+      </div>
+      <div class="field">
+        <label># Siege Armies</label>
+        <select id="numSiege">
+          <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===2?'selected':''}>${n}</option>`).join(''));</script>
+        </select>
+      </div>
+      <div class="field">
+        <label># DPS Armies</label>
+        <select id="numDps">
+          <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===0?'selected':''}>${n}</option>`).join(''));</script>
+        </select>
+      </div>
+      <div class="field">
+        <label>Vs Enemy Troop</label>
+        <select id="enemyTroop">
+          <option value="none">(none)</option>
+          <option value="spearmen">Spearmen</option>
+          <option value="cavalry">Cavalry</option>
+          <option value="archers">Archers</option>
+          <option value="shieldbearers">Shieldbearers</option>
+          <option value="siege">Siege</option>
+        </select>
+      </div>
+      <div class="field">
+        <label style="visibility:hidden">x</label>
+        <button class="btn btn-primary" onclick="optimizeAll()">⚔ Generate Armies</button>
+      </div>
+    </div>
+    <div class="hint" style="margin:-10px 0 18px;">Power armies are built first (best pick of your roster), then Siege armies are built from whoever's left — no dragon appears in more than one army.</div>
+
+    <div id="resultsArea"></div>
+
+    <h2 class="section-title" style="margin-top:32px;">Saved Formations <span class="count-badge" id="savedCount" style="margin-left:6px;">0</span></h2>
+    <div id="savedArea" class="saved-list"></div>
+
+    <h2 class="section-title" style="margin-top:32px;">Compare Formations</h2>
+    <div class="controls">
+      <div class="field">
+        <label>Goal</label>
+        <select id="cmpGoal">
+          <option value="power">Max Power</option>
+          <option value="siege">Siege</option>
+          <option value="dps">DPS</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Vs Enemy Troop</label>
+        <select id="cmpTroop">
+          <option value="none">(none)</option>
+          <option value="spearmen">Spearmen</option>
+          <option value="cavalry">Cavalry</option>
+          <option value="archers">Archers</option>
+          <option value="shieldbearers">Shieldbearers</option>
+          <option value="siege">Siege</option>
+        </select>
+      </div>
+      <div class="field">
+        <label style="visibility:hidden">x</label>
+        <button class="btn btn-primary" onclick="compareFormations()">⚖ Compare</button>
+      </div>
+    </div>
+    <div class="compare-pickers">
+      <div class="hint" style="grid-column:1/-1;margin:-10px 0 4px;">Unlike Generate Armies above, these positions are fixed to whatever you pick — the comparison won't rearrange dragons to find a better slot for them.</div>
+      <div class="compare-side">
+        <div class="compare-side-title">Formation A</div>
+        <label class="slot-pos" style="display:block;margin-bottom:2px;">Left Flank</label>
+        <select class="dragon-select" id="cmpA0"></select>
+        <label class="slot-pos" style="display:block;margin:6px 0 2px;">Vanguard</label>
+        <select class="dragon-select" id="cmpA1"></select>
+        <label class="slot-pos" style="display:block;margin:6px 0 2px;">Right Flank</label>
+        <select class="dragon-select" id="cmpA2"></select>
+      </div>
+      <div class="compare-side">
+        <div class="compare-side-title">Formation B</div>
+        <label class="slot-pos" style="display:block;margin-bottom:2px;">Left Flank</label>
+        <select class="dragon-select" id="cmpB0"></select>
+        <label class="slot-pos" style="display:block;margin:6px 0 2px;">Vanguard</label>
+        <select class="dragon-select" id="cmpB1"></select>
+        <label class="slot-pos" style="display:block;margin:6px 0 2px;">Right Flank</label>
+        <select class="dragon-select" id="cmpB2"></select>
+      </div>
+    </div>
+    <div id="compareArea"></div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="overlay" id="importOverlay" style="display:none;">
+  <div class="modal">
+    <h2>Import Roster JSON</h2>
+    <p class="hint" style="margin-bottom:10px;line-height:1.5;">
+      Paste roster JSON here (an array of dragon objects). Supports the extended schema with a per-troop
+      <code class="mono">affinity</code> map (spearmen/cavalry/archers/shieldbearers/siege → "+"/"-"/0) and a
+      <code class="mono">vanguard</code> skills object (selfDR / rightPhysical / leftTactical / leftFire).
+      Dragons with <code class="mono">power: 0</code> import fine, but power-based ranking won't mean much
+      until you fill in real numbers.
+    </p>
+    <textarea id="importText" style="width:100%;height:220px;background:var(--obsidian);border:1px solid var(--line);color:var(--parchment);font-family:'JetBrains Mono';font-size:11.5px;padding:10px;border-radius:4px;" placeholder="[ { &quot;name&quot;: ... }, ... ]"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeImportModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="importRosterJson()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- DRAGON MODAL -->
+<div class="overlay" id="dragonOverlay" style="display:none;">
+  <div class="modal">
+    <h2 id="modalTitle">Add Dragon</h2>
+    <input type="hidden" id="editId">
+    <div class="grid2">
+      <div class="field"><label>Name</label><input type="text" id="f_name" placeholder="e.g. Vhagar"></div>
+      <div class="field"><label>Rarity</label>
+        <select id="f_rarity"><option>Common</option><option>Rare</option><option>Epic</option><option selected>Legendary</option><option>Mythic</option></select>
+      </div>
+      <div class="field"><label>Breed</label><input type="text" id="f_breed" placeholder="e.g. Fireborn"></div>
+      <div class="field"><label>Role</label>
+        <select id="f_role"><option>Vanguard</option><option>Left Flank</option><option>Right Flank</option><option>Support</option></select>
+      </div>
+      <div class="field"><label>Main Damage Type</label>
+        <select id="f_damage"><option>Fire</option><option>Physical</option><option>Tactical</option></select>
+      </div>
+      <div class="field"><label>Power (in-game number)</label><input type="number" id="f_power" placeholder="e.g. 48000"></div>
+      <div class="field"><label>Troop Capacity (optional)</label><input type="number" id="f_capacity" placeholder="optional"></div>
+      <div class="field"><label>Star Rank (1-5)</label><input type="number" id="f_star" min="1" max="5" value="1"></div>
+      <div class="field"><label>Reign Level</label><input type="number" id="f_reign" value="1"></div>
+    </div>
+
+    <div class="subhead">Troop Affinity</div>
+    <div class="grid3">
+      <div class="field"><label>Troop type</label>
+        <select id="f_affType"><option value="none">(none)</option><option value="spearmen">Spearmen</option><option value="cavalry">Cavalry</option><option value="archers">Archers</option><option value="shieldbearers">Shieldbearers</option><option value="siege">Siege</option></select>
+      </div>
+      <div class="field"><label>Mode</label>
+        <select id="f_affMode"><option>neutral</option><option>boost</option><option>penalty</option></select>
+      </div>
+      <div class="field"><label>Amount (0–1)</label><input type="number" id="f_affAmount" step="0.05" min="0" max="1" value="0.2"></div>
+    </div>
+
+    <div class="subhead">Vanguard / Position Skills (0–1, e.g. 0.10 = +10%)</div>
+    <div class="skill-row"><label>Self damage reduction</label><input type="range" id="s_self" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_self')"><span class="rv" id="s_self_rv">0.00</span></div>
+    <div class="skill-row"><label>Right-flank physical buff</label><input type="range" id="s_rfp" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_rfp')"><span class="rv" id="s_rfp_rv">0.00</span></div>
+    <div class="skill-row"><label>Left-flank tactical buff</label><input type="range" id="s_lft" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_lft')"><span class="rv" id="s_lft_rv">0.00</span></div>
+    <div class="skill-row"><label>Left-flank fire buff</label><input type="range" id="s_lff" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_lff')"><span class="rv" id="s_lff_rv">0.00</span></div>
+
+    <div class="field field-full" style="margin-top:8px;"><label>Abilities & Synergies</label><input type="text" id="f_abilities" placeholder="comma-separated, e.g. Wildfire Breath, Siege Rend"></div>
+    <div class="field field-full" style="margin-top:8px;"><label>Notes</label><input type="text" id="f_notes" placeholder="optional"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="deleteBtn" onclick="deleteDragon()" style="display:none;">Delete</button>
+      <button class="btn btn-ghost" onclick="closeDragonModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDragon()">Save Dragon</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let dragons = [];
+let savedFormations = [];
+let lastResults = [];
+
+const STORAGE_KEY_DRAGONS = 'emberline_dragons';
+const STORAGE_KEY_SAVED = 'emberline_saved_formations';
+
+async function persistDragons(){
+  try{ localStorage.setItem(STORAGE_KEY_DRAGONS, JSON.stringify(dragons)); }catch(e){ console.error('save failed', e); }
+}
+async function persistSaved(){
+  try{ localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedFormations)); }catch(e){ console.error('save failed', e); }
+}
+async function loadAll(){
+  try{
+    const d = localStorage.getItem(STORAGE_KEY_DRAGONS);
+    if(d) dragons = JSON.parse(d);
+  }catch(e){ dragons = []; }
+  try{
+    const s = localStorage.getItem(STORAGE_KEY_SAVED);
+    if(s) savedFormations = JSON.parse(s);
+  }catch(e){ savedFormations = []; }
+  renderRoster();
+  renderSaved();
+}
+loadAll();
+
+function syncRV(id){ document.getElementById(id+'_rv').textContent = parseFloat(document.getElementById(id).value).toFixed(2); }
+
+function rarityRank(r){ return {Common:0,Rare:1,Epic:2,Legendary:3,Mythic:4}[r] ?? 0; }
+
+function renderRoster(){
+  document.getElementById('rosterCount').textContent = dragons.length;
+  const list = document.getElementById('dragonList');
+  populateCompareSelects();
+  if(dragons.length === 0){
+    list.innerHTML = `<div class="empty-note">No dragons yet.<br>Add one, or load the sample roster to explore.</div>`;
+    return;
+  }
+  list.innerHTML = dragons.map(d => `
+    <div class="dragon-card" onclick="openDragonModal('${d.id}')">
+      <div class="dc-top">
+        <span class="dc-name">${escapeHtml(d.name)}</span>
+        <span class="dc-power">${Math.round(dragonPower(d)).toLocaleString()}${!(Number(d.power)>0)?'*':''}</span>
+      </div>
+      <div class="dc-meta">
+        <span class="rarity-tag rarity-${d.rarity}">${d.rarity}</span>
+        &nbsp; ${escapeHtml(d.breed||'—')} · ${d.damage} · ★${d.star}
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function openDragonModal(id){
+  document.getElementById('dragonOverlay').style.display='flex';
+  document.getElementById('editId').value = id || '';
+  document.getElementById('deleteBtn').style.display = id ? 'inline-block' : 'none';
+  document.getElementById('modalTitle').textContent = id ? 'Edit Dragon' : 'Add Dragon';
+
+  const d = id ? dragons.find(x=>x.id===id) : null;
+  document.getElementById('f_name').value = d?.name || '';
+  document.getElementById('f_rarity').value = d?.rarity || 'Legendary';
+  document.getElementById('f_breed').value = d?.breed || '';
+  document.getElementById('f_role').value = d?.role || 'Vanguard';
+  document.getElementById('f_damage').value = d?.damage || 'Fire';
+  document.getElementById('f_power').value = d?.power ?? '';
+  document.getElementById('f_capacity').value = d?.capacity ?? '';
+  document.getElementById('f_star').value = d?.star ?? 1;
+  document.getElementById('f_reign').value = d?.reign ?? 1;
+  document.getElementById('f_affType').value = d?.affinity?.type || 'none';
+  document.getElementById('f_affMode').value = d?.affinity?.mode || 'neutral';
+  document.getElementById('f_affAmount').value = d?.affinity?.amount ?? 0.2;
+  document.getElementById('f_abilities').value = d?.abilities || '';
+  document.getElementById('f_notes').value = d?.notes || '';
+  document.getElementById('s_self').value = d?.skills?.selfDmgReduction ?? 0;
+  document.getElementById('s_rfp').value = d?.skills?.rightFlankPhysicalBuff ?? 0;
+  document.getElementById('s_lft').value = d?.skills?.leftFlankTacticalBuff ?? 0;
+  document.getElementById('s_lff').value = d?.skills?.leftFlankFireBuff ?? 0;
+  ['s_self','s_rfp','s_lft','s_lff'].forEach(syncRV);
+}
+function closeDragonModal(){ document.getElementById('dragonOverlay').style.display='none'; }
+
+async function saveDragon(){
+  const id = document.getElementById('editId').value;
+  const name = document.getElementById('f_name').value.trim();
+  if(!name){ alert('Please give this dragon a name.'); return; }
+  const obj = {
+    id: id || ('d_'+Date.now()+Math.floor(Math.random()*1000)),
+    name,
+    rarity: document.getElementById('f_rarity').value,
+    breed: document.getElementById('f_breed').value.trim(),
+    role: document.getElementById('f_role').value,
+    damage: document.getElementById('f_damage').value,
+    power: Number(document.getElementById('f_power').value)||0,
+    capacity: document.getElementById('f_capacity').value ? Number(document.getElementById('f_capacity').value) : null,
+    star: Number(document.getElementById('f_star').value)||1,
+    reign: Number(document.getElementById('f_reign').value)||1,
+    affinity: {
+      type: document.getElementById('f_affType').value,
+      mode: document.getElementById('f_affMode').value,
+      amount: Number(document.getElementById('f_affAmount').value)||0
+    },
+    abilities: document.getElementById('f_abilities').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+    skills: {
+      selfDmgReduction: Number(document.getElementById('s_self').value)||0,
+      rightFlankPhysicalBuff: Number(document.getElementById('s_rfp').value)||0,
+      leftFlankTacticalBuff: Number(document.getElementById('s_lft').value)||0,
+      leftFlankFireBuff: Number(document.getElementById('s_lff').value)||0,
+    }
+  };
+  if(id){
+    const idx = dragons.findIndex(x=>x.id===id);
+    dragons[idx] = obj;
+  } else {
+    dragons.push(obj);
+  }
+  await persistDragons();
+  renderRoster();
+  closeDragonModal();
+}
+
+async function deleteDragon(){
+  const id = document.getElementById('editId').value;
+  dragons = dragons.filter(x=>x.id!==id);
+  await persistDragons();
+  renderRoster();
+  closeDragonModal();
+}
+
+async function clearRoster(){
+  if(dragons.length===0) return;
+  if(!confirm(`Delete all ${dragons.length} dragons from your roster? This can't be undone (though you can re-import your JSON afterward).`)) return;
+  dragons = [];
+  await persistDragons();
+  renderRoster();
+  document.getElementById('resultsArea').innerHTML = '';
+}
+
+const TROOP_TYPES = ['spearmen','cavalry','archers','shieldbearers','siege'];
+
+function inferFlankRole(raw){
+  const role = (raw.role||'').toLowerCase();
+  if(role==='tank') return 'Vanguard';
+  if(role==='healer') return 'Support';
+  if(role==='physical') return 'Right Flank';
+  if(role==='tactical') return 'Left Flank';
+  if(role==='fire') return 'Left Flank';
+  return 'Flexible'; // control and unrecognized archetypes: no fixed position preference
+}
+
+function cap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+
+// Shared transform from the roster-JSON schema (matching the real site's own
+// dragon schema) into this tool's internal dragon object. Used by both
+// "Import roster JSON" and "Load sample roster".
+function transformRawDragon(raw){
+  const KNOWN_ROLES = ['tank','physical','tactical','fire','healer','control'];
+  const rawRole = (raw.role||'').toLowerCase();
+  const archetype = KNOWN_ROLES.includes(rawRole) ? rawRole : 'physical'; // real site's default fallback
+  const affinities = {};
+  TROOP_TYPES.forEach(t=>{
+    const v = raw.affinity && raw.affinity[t];
+    affinities[t] = v==='+' ? 'boost' : v==='-' ? 'penalty' : 'neutral';
+  });
+  const vg = raw.vanguard||{};
+  return {
+    id: raw.id || ('d_'+Date.now()+Math.floor(Math.random()*100000)),
+    name: raw.name || 'Unnamed',
+    rarity: cap(raw.rarity)||'Common',
+    breed: cap(raw.breed)||'',
+    role: inferFlankRole({role:archetype}),
+    archetype,
+    damage: cap(raw.damageType)||'Physical',
+    power: Number(raw.power)||0,
+    capacity: raw.troopCapacity ? Number(raw.troopCapacity) : null,
+    star: Number(raw.starRank)||1,
+    reign: Number(raw.reignLevel)||1,
+    affinities,           // full per-troop map (preferred, used by scoring if present)
+    affinity: {type:'none', mode:'neutral', amount:0}, // legacy single-field fallback
+    abilities: (raw.tags||[]).join(', '),
+    notes: raw.notes||'',
+    skills: {
+      selfDmgReduction: vg.selfDR||0,
+      rightFlankPhysicalBuff: vg.rightPhysical||0,
+      leftFlankTacticalBuff: vg.leftTactical||0,
+      leftFlankFireBuff: vg.leftFire||0
+    }
+  };
+}
+
+// The real 30-dragon seed roster, reconstructed exactly from the site's own data.js
+// (seedDragons()): same names, rarities, breeds, roles, tags, vanguard skills, and
+// the authoritative per-dragon troop-affinity table. Power is 0 (auto-estimated)
+// for every dragon here, same as the real site's seed data — edit in your real
+// numbers once loaded.
+const REAL_SEED_ROSTER = [{"id":"seed-0-syrax","name":"Syrax","rarity":"legendary","breed":"sentinel","role":"healer","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["heal","advantage","firstStrike"],"vanguard":{"leftTactical":0.1},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":"+","siege":"-"}},{"id":"seed-1-vhagar","name":"Vhagar","rarity":"legendary","breed":"warrior","role":"tank","damageType":"physical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["taunt","mitigation","debuff","wantsBurn"],"vanguard":{"selfDR":0.08,"leftTactical":0.16,"rightPhysical":0.12},"affinity":{"cavalry":0,"shieldbearers":"+","archers":"+","spearmen":0,"siege":"+"}},{"id":"seed-2-caraxes","name":"Caraxes","rarity":"legendary","breed":"hunter","role":"fire","damageType":"fire","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["firstStrike","burn"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":0,"archers":0,"spearmen":"+","siege":0}},{"id":"seed-3-seasmoke","name":"Seasmoke","rarity":"legendary","breed":"champion","role":"control","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["mitigation","debuff","resistance"],"vanguard":{"selfDR":0.06},"affinity":{"cavalry":"+","shieldbearers":0,"archers":"+","spearmen":0,"siege":"-"}},{"id":"seed-4-crimson","name":"Crimson","rarity":"legendary","breed":"hunter","role":"control","damageType":"fire","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["stun","burn","debuff"],"vanguard":{"rightPhysical":0.1},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":"+","siege":"+"}},{"id":"seed-5-kalspire","name":"Kalspire","rarity":"legendary","breed":"champion","role":"tank","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["mitigation","resistance","debuff"],"vanguard":{"selfDR":0.07},"affinity":{"cavalry":"+","shieldbearers":"+","archers":0,"spearmen":0,"siege":"+"}},{"id":"seed-6-malachite","name":"Malachite","rarity":"legendary","breed":"sentinel","role":"healer","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["heal","advantage","firstStrike","mitigation"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":"+","archers":0,"spearmen":0,"siege":"-"}},{"id":"seed-7-venator","name":"Venator","rarity":"legendary","breed":"warrior","role":"physical","damageType":"physical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["doubleStrike","debuff","scaling"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":"+","archers":0,"spearmen":"+","siege":0}},{"id":"seed-8-daemoros","name":"Daemoros","rarity":"epic","breed":"warrior","role":"physical","damageType":"physical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["burn","panic","confusion","debuff"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":0,"siege":0}},{"id":"seed-9-feskar","name":"Feskar","rarity":"epic","breed":"champion","role":"tactical","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["debuff","mitigation"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":0,"archers":0,"spearmen":0,"siege":"-"}},{"id":"seed-10-rhysarion","name":"Rhysarion","rarity":"epic","breed":"champion","role":"fire","damageType":"fire","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["heal","recovery","wantsControl"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":"+","archers":0,"spearmen":"+","siege":"+"}},{"id":"seed-11-shadowsong","name":"Shadowsong","rarity":"epic","breed":"hunter","role":"fire","damageType":"fire","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["burn","vulnerable","wantsPanic"],"vanguard":{"leftFire":0.1,"rightPhysical":0.08},"affinity":{"cavalry":"+","shieldbearers":0,"archers":0,"spearmen":0,"siege":0}},{"id":"seed-12-tashix","name":"Tashix","rarity":"epic","breed":"hunter","role":"fire","damageType":"fire","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["mirage","scaling","wantsControl"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":0,"siege":"-"}},{"id":"seed-13-vaeldra","name":"Vaeldra","rarity":"epic","breed":"warrior","role":"tank","damageType":"physical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["taunt","mitigation","wantsBurn"],"vanguard":{"selfDR":0.05,"rightPhysical":0.08},"affinity":{"cavalry":0,"shieldbearers":0,"archers":0,"spearmen":"+","siege":0}},{"id":"seed-14-velar","name":"Velar","rarity":"epic","breed":"sentinel","role":"healer","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["heal","cleanse","recovery","firstStrike","advantage"],"vanguard":{"leftTactical":0.08},"affinity":{"cavalry":0,"shieldbearers":"+","archers":0,"spearmen":0,"siege":0}},{"id":"seed-15-zivern","name":"Zivern","rarity":"epic","breed":"sentinel","role":"tactical","damageType":"tactical","starRank":3,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["panic","debuff"],"vanguard":{"leftTactical":0.06},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":0,"siege":"+"}},{"id":"seed-16-solstryker","name":"Solstryker","rarity":"rare","breed":"champion","role":"control","damageType":"physical","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["debuff","mitigation"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":0,"siege":0}},{"id":"seed-17-antares","name":"Antares","rarity":"rare","breed":"hunter","role":"fire","damageType":"fire","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["burn"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":"+","spearmen":0,"siege":"-"}},{"id":"seed-18-shimmer","name":"Shimmer","rarity":"rare","breed":"sentinel","role":"healer","damageType":"tactical","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["recovery","resistance"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":0,"archers":0,"spearmen":0,"siege":"+"}},{"id":"seed-19-jagadrix","name":"Jagadrix","rarity":"rare","breed":"hunter","role":"fire","damageType":"fire","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["panic"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":0,"spearmen":"+","siege":0}},{"id":"seed-20-bevlorin","name":"Bevlorin","rarity":"rare","breed":"champion","role":"control","damageType":"tactical","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["confusion","recovery","mitigation"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":0,"spearmen":"+","siege":0}},{"id":"seed-21-shadowrend","name":"Shadowrend","rarity":"rare","breed":"warrior","role":"physical","damageType":"physical","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["advantage","panic"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":"+","archers":0,"spearmen":0,"siege":"+"}},{"id":"seed-22-thunderstrike","name":"Thunderstrike","rarity":"rare","breed":"warrior","role":"physical","damageType":"physical","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["stun"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":0,"archers":0,"spearmen":0,"siege":0}},{"id":"seed-23-vesper","name":"Vesper","rarity":"rare","breed":"sentinel","role":"healer","damageType":"tactical","starRank":2,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["resistance","mitigation"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":"+","archers":0,"spearmen":0,"siege":"-"}},{"id":"seed-24-arulix","name":"Arulix","rarity":"rare","breed":"champion","role":"control","damageType":"tactical","starRank":1,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["debuff"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":0,"archers":0,"spearmen":0,"siege":0}},{"id":"seed-25-nyrena","name":"Nyrena","rarity":"rare","breed":"champion","role":"control","damageType":"fire","starRank":1,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["debuff","burn"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":"+","archers":0,"spearmen":0,"siege":"+"}},{"id":"seed-26-dawnseeker","name":"Dawnseeker","rarity":"rare","breed":"sentinel","role":"healer","damageType":"tactical","starRank":1,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["heal","cleanse"],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":0,"archers":0,"spearmen":"+","siege":"-"}},{"id":"seed-27-arrax","name":"Arrax","rarity":"rare","breed":"warrior","role":"physical","damageType":"physical","starRank":1,"reignLevel":15,"power":0,"troopCapacity":0,"tags":[],"vanguard":{},"affinity":{"cavalry":0,"shieldbearers":"+","archers":"+","spearmen":0,"siege":0}},{"id":"seed-28-sheepstealer","name":"Sheepstealer","rarity":"legendary","breed":"hunter","role":"fire","damageType":"fire","starRank":1,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["burn","evasion","scaling"],"vanguard":{"leftFire":0.08},"affinity":{"cavalry":"+","shieldbearers":0,"archers":"+","spearmen":0,"siege":0}},{"id":"seed-29-vermax","name":"Vermax","rarity":"epic","breed":"warrior","role":"physical","damageType":"physical","starRank":1,"reignLevel":15,"power":0,"troopCapacity":0,"tags":["firstStrike"],"vanguard":{},"affinity":{"cavalry":"+","shieldbearers":"+","archers":0,"spearmen":0,"siege":0}}];
+
+async function loadSample(){
+  if(dragons.length && !confirm('This loads the real 30-dragon seed roster (from dragonfire-formations.com\'s own data.js) into your current roster. Continue?')) return;
+  const imported = REAL_SEED_ROSTER.map(transformRawDragon);
+  const importedIds = new Set(imported.map(d=>d.id));
+  dragons = dragons.filter(d=>!importedIds.has(d.id)).concat(imported);
+  await persistDragons();
+  renderRoster();
+}
+
+function openImportModal(){ document.getElementById('importOverlay').style.display='flex'; }
+function closeImportModal(){ document.getElementById('importOverlay').style.display='none'; document.getElementById('importText').value=''; }
+
+async function importRosterJson(){
+  let parsed;
+  try{ parsed = JSON.parse(document.getElementById('importText').value); }
+  catch(e){ alert('That doesn\'t look like valid JSON: '+e.message); return; }
+  if(!Array.isArray(parsed)){ alert('Expected a JSON array of dragon objects.'); return; }
+
+  const imported = parsed.map(transformRawDragon);
+
+  const importedIds = new Set(imported.map(d=>d.id));
+  dragons = dragons.filter(d=>!importedIds.has(d.id)).concat(imported);
+  await persistDragons();
+  renderRoster();
+  closeImportModal();
+  alert(`Imported ${imported.length} dragons (replacing any existing dragons with matching IDs). Note: dragons with Power = 0 will score as 0 base power until you edit in real numbers.`);
+}
+
+function combinations3(arr){
+  const res=[];
+  for(let i=0;i<arr.length;i++)
+    for(let j=i+1;j<arr.length;j++)
+      for(let k=j+1;k<arr.length;k++)
+        res.push([arr[i],arr[j],arr[k]]);
+  return res;
+}
+function permutations3(arr){
+  const [a,b,c]=arr;
+  return [[a,b,c],[a,c,b],[b,a,c],[b,c,a],[c,a,b],[c,b,a]];
+}
+
+const TROOP_LABELS = {spearmen:'Spearmen', cavalry:'Cavalry', archers:'Archers', shieldbearers:'Shieldbearers', siege:'Siege'};
+const TROOP_ICONS = {spearmen:'⚔', cavalry:'🐎', archers:'🏹', shieldbearers:'🛡', siege:'🏰'};
+
+function inferDisplayRole(d){
+  const arch = d.archetype;
+  if(arch==='healer') return 'Healer / Support';
+  if(arch==='tank') return 'Tank / Taunt';
+  if(arch==='control') return 'Control / Debuffer';
+  if(arch==='physical') return 'Physical DPS';
+  if(arch==='fire') return 'Fire DPS';
+  if(arch==='tactical') return 'Tactical Support';
+  const t = (d.abilities||'').toLowerCase();
+  if(t.includes('heal')) return 'Healer / Support';
+  if(t.includes('taunt')) return 'Tank / Taunt';
+  if(t.includes('debuff') || t.includes('control')) return 'Control / Debuffer';
+  if(d.damage==='Physical') return 'Physical DPS';
+  if(d.damage==='Fire') return 'Fire DPS';
+  if(d.damage==='Tactical') return 'Tactical Support';
+  return (d.damage||'')+' DPS';
+}
+
+function getAffinityMode(d, troop){
+  if(d.affinities && d.affinities[troop]) return d.affinities[troop];
+  if(d.affinity && d.affinity.type===troop) return d.affinity.mode;
+  return 'neutral';
+}
+
+const DEALER_ARCHETYPES = ['physical','fire','tactical'];
+const CONTROL_TAGS = ['stun','panic','confusion','taunt','overwhelm'];
+
+// Exact constants from the real site's scoring.js (fetched by the user).
+const RARITY_COEF = { rare:300, epic:410, legendary:540, mythic:700 }; // 'common' and anything else falls back to 'rare'
+function estimatePower(d){
+  const c = RARITY_COEF[(d.rarity||'').toLowerCase()] || RARITY_COEF.rare;
+  const star = 1 + 0.15*(Number(d.star)||1);
+  const reign = Number(d.reign)||10;
+  return Math.round((c*star*reign)/10)*10;
+}
+function dragonPower(d){
+  const p = Number(d.power);
+  return (p && p>0) ? p : estimatePower(d);
+}
+
+// Ported from the real dragonfire-formations.com scoring.js (fetched by the user).
+// add(text, pct, refPower) mirrors their helper: the absolute bonus is pct*refPower
+// (refPower defaults to basePower), and the displayed % on each line is that
+// absolute amount divided by basePower. troop is resolved by the caller (bestArrangement),
+// which now searches all troop types the same way the real optimizer does.
+function buildSynergy(left, center, right, goal, troop){
+  const trio = [left,center,right];
+  const pw = { left:dragonPower(left), center:dragonPower(center), right:dragonPower(right) };
+  const basePower = pw.left+pw.center+pw.right;
+  const tagHas = (d,tag) => {
+    const t = tag.toLowerCase();
+    return (d.abilities||'').toLowerCase().split(',').map(s=>s.trim()).includes(t);
+  };
+
+  const lines = [];
+  const warnings = [];
+  let bonus = 0;
+  const addLine = (label, pct, refPower) => {
+    const amt = pct * (refPower!=null ? refPower : basePower);
+    bonus += amt;
+    if(basePower<=0) return;
+    const displayPct = (amt/basePower)*100;
+    if(Math.abs(displayPct)>=0.05) lines.push({pct:displayPct, label});
+  };
+  const addSilent = (pct, refPower) => {
+    bonus += pct * (refPower!=null ? refPower : basePower);
+  };
+  const add = addLine;
+
+  // 1. Troop affinity
+  let positives = 0;
+  trio.forEach(d=>{
+    const mode = troop ? getAffinityMode(d, troop) : 'neutral';
+    if(mode==='boost'){ positives++; add(`${d.name}: positive ${TROOP_LABELS[troop]} affinity (+7% stats)`, 0.07, dragonPower(d)); }
+    if(mode==='penalty'){
+      addSilent(-0.07, dragonPower(d));
+      warnings.push(`${d.name} has NEGATIVE ${TROOP_LABELS[troop]} affinity (-7%)`);
+    }
+  });
+  if(positives>=2) add(`Stacked ${TROOP_LABELS[troop]} affinity across ${positives} dragons`, 0.03*(positives-1));
+
+  // 2. Vanguard tank + the Vanguard dragon's own flank-buff skills
+  const vgSkill = (center.skills)||{};
+  if(vgSkill.selfDmgReduction>0) add(`${center.name} vanguard: -${Math.round(vgSkill.selfDmgReduction*100)}% self damage (survivability)`, vgSkill.selfDmgReduction*0.5, pw.center);
+  if(tagHas(center,'taunt')) add(`${center.name} taunts from Vanguard — soaks damage for your flanks`, 0.10);
+  if(vgSkill.rightFlankPhysicalBuff>0 && right.damage==='Physical') add(`${center.name} buffs right-flank PHYSICAL → ${right.name} (+${Math.round(vgSkill.rightFlankPhysicalBuff*100)}%)`, vgSkill.rightFlankPhysicalBuff, pw.right);
+  if(vgSkill.leftFlankTacticalBuff>0 && left.damage==='Tactical') add(`${center.name} buffs left-flank TACTICAL → ${left.name} (+${Math.round(vgSkill.leftFlankTacticalBuff*100)}%)`, vgSkill.leftFlankTacticalBuff, pw.left);
+  if(vgSkill.leftFlankFireBuff>0 && left.damage==='Fire') add(`${center.name} buffs left-flank FIRE → ${left.name} (+${Math.round(vgSkill.leftFlankFireBuff*100)}%)`, vgSkill.leftFlankFireBuff, pw.left);
+
+  // 3. Role-position fit
+  if(right.archetype==='physical') add(`${right.name} (Physical DPS) correctly on Right Flank`, 0.05, pw.right);
+  if(['tactical','fire','healer'].includes(left.archetype)) add(`${left.name} (${left.archetype}) correctly on Left Flank`, 0.04, pw.left);
+  if(center.archetype==='tank') add(`${center.name} (Tank) correctly in Vanguard`, 0.05, pw.center);
+  if(right.archetype==='tank') warnings.push(`${right.name} is a Tank but on the Right Flank — usually better in Vanguard.`);
+
+  // 4. Team synergies
+  const anyTaunt = trio.some(d=>tagHas(d,'taunt'));
+  const anySustain = trio.some(d=>tagHas(d,'heal')||tagHas(d,'recovery')||tagHas(d,'cleanse'));
+  const anyMitigation = trio.some(d=>tagHas(d,'mitigation')||tagHas(d,'resistance')||tagHas(d,'evasion'));
+  const anyAdvantage = trio.some(d=>tagHas(d,'advantage'));
+  const anyBurn = trio.some(d=>tagHas(d,'burn'));
+  const anyPanic = trio.some(d=>tagHas(d,'panic'));
+  const anyControl = trio.some(d=>CONTROL_TAGS.some(t=>tagHas(d,t)));
+
+  if(anyTaunt && anyBurn) add(`Taunt + Burn: taunt activation chance is doubled vs burned enemies`, 0.06);
+  if(anyTaunt && (anySustain||anyMitigation)) add(`Tank + Sustain/Mitigation: taunt dragon survives longer`, 0.06);
+
+  trio.forEach(d=>{
+    if(tagHas(d,'wantspanic') && anyPanic) add(`${d.name} scales with Panic on the field`, 0.07, dragonPower(d));
+    if(tagHas(d,'wantsburn') && anyBurn) add(`${d.name} scales with Burn on the field`, 0.05, dragonPower(d));
+    if(tagHas(d,'wantscontrol') && anyControl) add(`${d.name} hits harder vs controlled enemies`, 0.06, dragonPower(d));
+    if(tagHas(d,'scaling') && (anySustain||anyMitigation)) add(`${d.name} (scaling) reaches late rounds thanks to sustain`, 0.05, dragonPower(d));
+  });
+
+  if(anyAdvantage){
+    const dpsCount = trio.filter(d=>DEALER_ARCHETYPES.includes(d.archetype)).length;
+    if(dpsCount>=1) add(`Advantage granted to ${dpsCount} damage dealer(s) (+10% damage each)`, 0.04*dpsCount);
+  }
+
+  // 5. Role balance
+  const tanks = trio.filter(d=>d.archetype==='tank').length;
+  const dpsAll = trio.filter(d=>DEALER_ARCHETYPES.includes(d.archetype)).length;
+  const healers = trio.filter(d=>d.archetype==='healer').length;
+  if(tanks>=1 && dpsAll>=1) add(`Balanced core: tank + damage dealer(s)`, 0.04);
+  if(dpsAll===0) warnings.push(`No damage dealer in this army — low kill pressure.`);
+  if(tanks>=3) warnings.push(`Three tanks — very little damage output.`);
+  if(healers>=2) warnings.push(`Two healers — consider swapping one for damage.`);
+
+  // 6. Formation goal emphasis
+  if(goal==='siege'){
+    const siegeAff = trio.filter(d=>getAffinityMode(d,'siege')==='boost').length;
+    if(siegeAff) add(`Built for Siege: ${siegeAff} dragon(s) with + Siege affinity`, 0.06*siegeAff);
+    const dealers = trio.filter(d=>DEALER_ARCHETYPES.includes(d.archetype)).length;
+    if(dealers) add(`Siege output: ${dealers} damage dealer(s) driving siege damage`, 0.04*dealers);
+    trio.forEach(d=>{ if(getAffinityMode(d,'siege')==='penalty') warnings.push(`${d.name} has NEGATIVE Siege affinity — weak choice for a siege formation.`); });
+  } else if(goal==='dps'){
+    const dealers = trio.filter(d=>DEALER_ARCHETYPES.includes(d.archetype)).length;
+    if(dealers) add(`DPS focus: ${dealers} damage dealer(s)`, 0.05*dealers);
+    const ampl = trio.filter(d=>tagHas(d,'burn')||tagHas(d,'doublestrike')||tagHas(d,'scaling')||tagHas(d,'vulnerable')||tagHas(d,'advantage')).length;
+    if(ampl) add(`Offensive kit: ${ampl} damage-amplifying dragon(s)`, 0.03*ampl);
+  }
+
+  lines.sort((a,b)=>b.pct-a.pct);
+  const totalPct = basePower>0 ? (bonus/basePower)*100 : 0;
+  const score = basePower + bonus;
+  return {troop, totalPct, lines, warnings, score, baseSum:basePower};
+}
+
+function bestArrangement(trio, goal, enemyTroop){
+  // Mirrors the real optimizer's bestArmy(): try every left/vanguard/right ordering
+  // AND every troop type (unless one is forced), keep the best-scoring combination.
+  let troops;
+  if(enemyTroop && enemyTroop!=='none') troops = [enemyTroop];
+  else if(goal==='siege') troops = ['siege'];
+  else troops = TROOP_TYPES;
+
+  let best=null;
+  permutations3(trio).forEach(([l,c,r])=>{
+    troops.forEach(t=>{
+      const syn = buildSynergy(l,c,r,goal,t);
+      if(!best || syn.score>best.synergy.score){
+        best = {left:l, center:c, right:r, synergy:syn};
+      }
+    });
+  });
+  return best;
+}
+
+// Ported from optimizer.js's local-search loop: after an initial greedy partition,
+// repeatedly try swapping single dragons between armies whenever it improves the
+// combined score. This is what actually finds the globally-strong partition —
+// without it, greedy-only selection can land on a noticeably worse total.
+function localSearchImprove(chosen, goal, enemyTroop, maxIterations){
+  maxIterations = maxIterations || 200;
+  let improved = true, iter = 0;
+  while(improved && iter<maxIterations){
+    improved = false; iter++;
+    for(let i=0;i<chosen.length;i++){
+      for(let j=i+1;j<chosen.length;j++){
+        const dragsI = [chosen[i].left, chosen[i].center, chosen[i].right];
+        const dragsJ = [chosen[j].left, chosen[j].center, chosen[j].right];
+        for(let x=0;x<3;x++){
+          for(let y=0;y<3;y++){
+            const before = chosen[i].synergy.score + chosen[j].synergy.score;
+            const newI = dragsI.slice(); const newJ = dragsJ.slice();
+            const tmp = newI[x]; newI[x]=newJ[y]; newJ[y]=tmp;
+            const bestI = bestArrangement(newI, goal, enemyTroop);
+            const bestJ = bestArrangement(newJ, goal, enemyTroop);
+            if(bestI.synergy.score + bestJ.synergy.score > before + 1e-6){
+              chosen[i] = {...bestI, goal};
+              chosen[j] = {...bestJ, goal};
+              improved = true;
+            }
+          }
+        }
+      }
+    }
+  }
+  return chosen;
+}
+
+function pickArmies(pool, usedIds, goal, count, enemyTroop){
+  const chosen=[];
+  if(count<=0) return chosen;
+  let available = pool.filter(d=>!usedIds.has(d.id));
+  if(available.length<3) return chosen;
+
+  // Matches the real optimizer.js: only the top (numArmies*3) dragons by power are ever
+  // considered for this batch — everything below that cutoff is benched before partitioning
+  // even starts.
+  const capacity = count*3;
+  if(available.length>capacity){
+    available = available.slice().sort((a,b)=>dragonPower(b)-dragonPower(a)).slice(0,capacity);
+  }
+
+  const combos = combinations3(available).map(trio => bestArrangement(trio, goal, enemyTroop))
+    .sort((a,b)=>b.synergy.score-a.synergy.score);
+  for(const c of combos){
+    if(chosen.length>=count) break;
+    const ids=[c.left.id,c.center.id,c.right.id];
+    if(ids.some(id=>usedIds.has(id))) continue;
+    ids.forEach(id=>usedIds.add(id));
+    chosen.push({...c, goal});
+  }
+
+  // Local-search pass to fix suboptimal partitions the greedy pick can land on.
+  localSearchImprove(chosen, goal, enemyTroop);
+  return chosen;
+}
+
+function optimizeAll(){
+  if(dragons.length<3){
+    document.getElementById('resultsArea').innerHTML = `<div class="empty-note">You need at least 3 dragons in your roster to build a formation.</div>`;
+    return;
+  }
+  const numPower = Number(document.getElementById('numPower').value);
+  const numSiege = Number(document.getElementById('numSiege').value);
+  const numDps = Number(document.getElementById('numDps').value);
+  const enemyTroop = document.getElementById('enemyTroop').value;
+
+  const usedIds = new Set();
+  // Power armies get first pick of the roster, as requested.
+  const powerArmies = pickArmies(dragons, usedIds, 'power', numPower, enemyTroop);
+  // Siege and DPS armies are built only from whoever's left over.
+  const siegeArmies = pickArmies(dragons, usedIds, 'siege', numSiege, enemyTroop);
+  const dpsArmies = pickArmies(dragons, usedIds, 'dps', numDps, enemyTroop);
+
+  lastResults = [...powerArmies, ...siegeArmies, ...dpsArmies];
+  renderResults(powerArmies, siegeArmies, dpsArmies);
+}
+
+function powerCell(d){
+  const est = !(Number(d.power)>0);
+  return `${Math.round(dragonPower(d)).toLocaleString()}${est?'*':''}`;
+}
+
+function formationCard(c, rank, globalIndex, badgeClass){
+  const syn = c.synergy;
+  const synColor = syn.totalPct>=0 ? 'var(--gold)' : 'var(--danger)';
+  const linesHtml = syn.lines.map(l=>{
+    const pos = l.pct>=0;
+    return `<div class="why-line ${pos?'':'why-neg'}">${pos?'+':''}${l.pct.toFixed(1)}% ${escapeHtml(l.label)}</div>`;
+  }).join('');
+  return `
+    <div class="formation-card-full">
+      <div class="fc-head">
+        <div class="rank-badge ${badgeClass}">${rank}</div>
+        <div class="fc-troop">${TROOP_ICONS[syn.troop]||''} ${TROOP_LABELS[syn.troop]||syn.troop} <span class="fc-synergy" style="color:${synColor};">${syn.totalPct>=0?'+':''}${syn.totalPct.toFixed(1)}% synergy</span></div>
+        <div class="fc-total">
+          <div class="val">${Math.round(syn.score).toLocaleString()}</div>
+          <button class="btn btn-sm btn-ghost" onclick="saveFormation(${globalIndex})">☆ Save</button>
+        </div>
+      </div>
+      <div class="slots">
+        <div class="slot"><div class="slot-pos">Left Flank</div><div class="slot-name">${escapeHtml(c.left.name)}</div><div class="slot-role">${escapeHtml(inferDisplayRole(c.left))}</div><div class="slot-stats">${powerCell(c.left)}</div></div>
+        <div class="slot"><div class="slot-pos">Vanguard</div><div class="slot-name">${escapeHtml(c.center.name)}</div><div class="slot-role">${escapeHtml(inferDisplayRole(c.center))}</div><div class="slot-stats">${powerCell(c.center)}</div></div>
+        <div class="slot"><div class="slot-pos">Right Flank</div><div class="slot-name">${escapeHtml(c.right.name)}</div><div class="slot-role">${escapeHtml(inferDisplayRole(c.right))}</div><div class="slot-stats">${powerCell(c.right)}</div></div>
+      </div>
+      <div class="why-box">
+        <div class="why-title">Why this works</div>
+        ${linesHtml || '<div class="why-line" style="color:var(--muted);">No named synergy bonuses found for this trio — pure base power.</div>'}
+      </div>
+      ${syn.warnings.length ? `<div class="why-box"><div class="why-title" style="color:#e0a23a;">Warnings</div>${syn.warnings.map(w=>`<div class="why-line" style="color:#e0a23a;">⚠ ${escapeHtml(w)}</div>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderResults(powerArmies, siegeArmies, dpsArmies){
+  dpsArmies = dpsArmies || [];
+  const area = document.getElementById('resultsArea');
+  if(powerArmies.length===0 && siegeArmies.length===0 && dpsArmies.length===0){
+    area.innerHTML = `<div class="empty-note">No formations could be built — try lowering the army counts or adding more dragons (each army needs 3 unused dragons).</div>`;
+    return;
+  }
+  const all = [...powerArmies, ...siegeArmies, ...dpsArmies];
+  const totalEffective = all.reduce((s,c)=>s+c.synergy.score,0);
+  const totalRaw = all.reduce((s,c)=>s+c.synergy.baseSum,0);
+  const uplift = totalRaw>0 ? ((totalEffective-totalRaw)/totalRaw*100) : 0;
+  const deployedIds = new Set(all.flatMap(c=>[c.left.id,c.center.id,c.right.id]));
+  const deployed = deployedIds.size;
+  const benched = dragons.length - deployed;
+
+  let html = `
+    <div class="summary-bar">
+      <div><div class="summary-val">${Math.round(totalEffective).toLocaleString()}</div><div class="summary-lbl">Total effective power</div></div>
+      <div><div class="summary-val" style="color:var(--gold);">${uplift>=0?'+':''}${uplift.toFixed(1)}%</div><div class="summary-lbl">Synergy uplift over raw power</div></div>
+      <div><div class="summary-val">${deployed}</div><div class="summary-lbl">Dragons deployed (${benched} benched)</div></div>
+    </div>`;
+  if(powerArmies.length){
+    html += `<h3 class="section-title" style="font-size:12px;">Max Power Armies</h3><div class="formations">`;
+    html += powerArmies.map((c,i)=>formationCard(c, i+1, i, '')).join('');
+    html += `</div>`;
+  }
+  if(siegeArmies.length){
+    html += `<h3 class="section-title" style="font-size:12px;margin-top:24px;">Siege Armies</h3><div class="formations">`;
+    html += siegeArmies.map((c,i)=>formationCard(c, i+1, powerArmies.length+i, 'siege-badge')).join('');
+    html += `</div>`;
+  }
+  if(dpsArmies.length){
+    html += `<h3 class="section-title" style="font-size:12px;margin-top:24px;">DPS Armies</h3><div class="formations">`;
+    html += dpsArmies.map((c,i)=>formationCard(c, i+1, powerArmies.length+siegeArmies.length+i, 'dps-badge')).join('');
+    html += `</div>`;
+  }
+  area.innerHTML = html;
+}
+
+async function saveFormation(i){
+  const c = lastResults[i];
+  savedFormations.push({
+    id:'sf_'+Date.now(),
+    left:c.left.name, center:c.center.name, right:c.right.name,
+    score: Math.round(c.synergy.score),
+    goal: c.goal
+  });
+  await persistSaved();
+  renderSaved();
+}
+
+function renderSaved(){
+  document.getElementById('savedCount').textContent = savedFormations.length;
+  const area = document.getElementById('savedArea');
+  if(savedFormations.length===0){ area.innerHTML = `<div class="empty-note">No saved formations yet.</div>`; return; }
+  area.innerHTML = savedFormations.map(s=>`
+    <div class="saved-item">
+      <span>${s.goal==='siege' ? '🛡' : '⚡'} ${escapeHtml(s.left)} · ${escapeHtml(s.center)} · ${escapeHtml(s.right)}</span>
+      <span class="mono" style="color:var(--gold);">${s.score.toLocaleString()} &nbsp; <button class="btn btn-sm btn-ghost" onclick="removeSaved('${s.id}')">✕</button></span>
+    </div>
+  `).join('');
+}
+async function removeSaved(id){
+  savedFormations = savedFormations.filter(s=>s.id!==id);
+  await persistSaved();
+  renderSaved();
+}
+
+// ---- Compare Formations ----
+let lastCompareResults = [];
+
+function populateCompareSelects(){
+  const ids = ['cmpA0','cmpA1','cmpA2','cmpB0','cmpB1','cmpB2'];
+  ids.forEach(id=>{
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— choose dragon —</option>' +
+      dragons.map(d=>`<option value="${d.id}">${escapeHtml(d.name)} (${Math.round(dragonPower(d)).toLocaleString()}${!(Number(d.power)>0)?'*':''})</option>`).join('');
+    if(dragons.some(d=>d.id===cur)) sel.value = cur;
+  });
+}
+
+function compareCard(c, label, idx, isWinner){
+  const syn = c.synergy;
+  const synColor = syn.totalPct>=0 ? 'var(--gold)' : 'var(--danger)';
+  const linesHtml = syn.lines.map(l=>{
+    const pos = l.pct>=0;
+    return `<div class="why-line ${pos?'':'why-neg'}">${pos?'+':''}${l.pct.toFixed(1)}% ${escapeHtml(l.label)}</div>`;
+  }).join('');
+  return `
+    <div class="formation-card-full ${isWinner?'compare-winner':''}">
+      <div class="compare-label">${escapeHtml(label)}${isWinner?' 🏆 Stronger':''}</div>
+      <div class="fc-head" style="margin-top:8px;">
+        <div class="fc-troop">${TROOP_ICONS[syn.troop]||''} ${TROOP_LABELS[syn.troop]||syn.troop} <span class="fc-synergy" style="color:${synColor};">${syn.totalPct>=0?'+':''}${syn.totalPct.toFixed(1)}% synergy</span></div>
+        <div class="fc-total">
+          <div class="val">${Math.round(syn.score).toLocaleString()}</div>
+          <button class="btn btn-sm btn-ghost" onclick="saveComparedFormation(${idx})">☆ Save</button>
+        </div>
+      </div>
+      <div class="slots">
+        <div class="slot"><div class="slot-pos">Left Flank</div><div class="slot-name">${escapeHtml(c.left.name)}</div><div class="slot-role">${escapeHtml(inferDisplayRole(c.left))}</div><div class="slot-stats">${powerCell(c.left)}</div></div>
+        <div class="slot"><div class="slot-pos">Vanguard</div><div class="slot-name">${escapeHtml(c.center.name)}</div><div class="slot-role">${escapeHtml(inferDisplayRole(c.center))}</div><div class="slot-stats">${powerCell(c.center)}</div></div>
+        <div class="slot"><div class="slot-pos">Right Flank</div><div class="slot-name">${escapeHtml(c.right.name)}</div><div class="slot-role">${escapeHtml(inferDisplayRole(c.right))}</div><div class="slot-stats">${powerCell(c.right)}</div></div>
+      </div>
+      <div class="why-box">
+        <div class="why-title">Why this works</div>
+        ${linesHtml || '<div class="why-line" style="color:var(--muted);">No named synergy bonuses found for this trio — pure base power.</div>'}
+      </div>
+      ${syn.warnings.length ? `<div class="why-box"><div class="why-title" style="color:#e0a23a;">Warnings</div>${syn.warnings.map(w=>`<div class="why-line" style="color:#e0a23a;">⚠ ${escapeHtml(w)}</div>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function compareFormations(){
+  const area = document.getElementById('compareArea');
+  const getSel = id => document.getElementById(id).value;
+  const idsA = ['cmpA0','cmpA1','cmpA2'].map(getSel);
+  const idsB = ['cmpB0','cmpB1','cmpB2'].map(getSel);
+
+  if(idsA.some(id=>!id) || idsB.some(id=>!id)){
+    area.innerHTML = `<div class="empty-note">Pick 3 dragons for both Formation A and Formation B.</div>`;
+    return;
+  }
+  if(new Set(idsA).size<3 || new Set(idsB).size<3){
+    area.innerHTML = `<div class="empty-note">Each formation needs 3 different dragons — no repeats within the same side.</div>`;
+    return;
+  }
+
+  const trioA = idsA.map(id=>dragons.find(d=>d.id===id));
+  const trioB = idsB.map(id=>dragons.find(d=>d.id===id));
+  const goal = document.getElementById('cmpGoal').value;
+  const troop = document.getElementById('cmpTroop').value;
+
+  // Fixed slot assignment (Left Flank / Vanguard / Right Flank, matching the
+  // dropdown labels) — unlike the main optimizer, this does NOT search other
+  // arrangements, so the comparison reflects exactly the placement you picked.
+  // Troop type: if you picked one, it's forced; otherwise search all troop
+  // types (or force Siege for the Siege goal) and keep the best, same
+  // resolution the main optimizer uses — just without touching positions.
+  const troopCandidates = (troop && troop!=='none') ? [troop] : (goal==='siege' ? ['siege'] : TROOP_TYPES);
+  const bestOf = (trio) => {
+    let best=null;
+    troopCandidates.forEach(t=>{
+      const syn = buildSynergy(trio[0], trio[1], trio[2], goal, t);
+      if(!best || syn.score>best.synergy.score) best = {left:trio[0], center:trio[1], right:trio[2], synergy:syn};
+    });
+    return best;
+  };
+  const bestA = bestOf(trioA);
+  const bestB = bestOf(trioB);
+  lastCompareResults = [bestA, bestB];
+
+  const scoreDiff = bestA.synergy.score - bestB.synergy.score;
+  const winner = Math.abs(scoreDiff)<1e-6 ? 'tie' : (scoreDiff>0 ? 'A' : 'B');
+  const smaller = Math.min(bestA.synergy.score, bestB.synergy.score);
+  const pctDiff = smaller>0 ? (Math.abs(scoreDiff)/smaller*100) : 0;
+  const overlap = idsA.filter(id=>idsB.includes(id)).map(id=>dragons.find(d=>d.id===id).name);
+
+  let html = `<div class="compare-grid">`;
+  html += compareCard(bestA, 'Formation A', 0, winner==='A');
+  html += compareCard(bestB, 'Formation B', 1, winner==='B');
+  html += `</div>`;
+
+  html += `<div class="compare-verdict">`;
+  if(winner==='tie'){
+    html += `Dead even — both formations score exactly ${Math.round(bestA.synergy.score).toLocaleString()}.`;
+  } else {
+    html += `<b>${winner==='A'?'Formation A':'Formation B'}</b> wins by ${Math.round(Math.abs(scoreDiff)).toLocaleString()} points (${pctDiff.toFixed(1)}% stronger).`;
+  }
+  if(overlap.length){
+    html += `<div style="margin-top:8px;color:#e0a23a;">⚠ ${escapeHtml(overlap.join(', '))} appear${overlap.length===1?'s':''} in both formations — you can't field the same dragon in two armies at once.</div>`;
+  }
+  html += `</div>`;
+
+  area.innerHTML = html;
+}
+
+async function saveComparedFormation(idx){
+  const c = lastCompareResults[idx];
+  if(!c) return;
+  savedFormations.push({
+    id:'sf_'+Date.now(),
+    left:c.left.name, center:c.center.name, right:c.right.name,
+    score: Math.round(c.synergy.score),
+    goal: document.getElementById('cmpGoal').value
+  });
+  await persistSaved();
+  renderSaved();
+}
+</script>
+</body>
+</html>
