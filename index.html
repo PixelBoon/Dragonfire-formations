@@ -896,6 +896,14 @@ function pickArmies(pool, usedIds, goal, count, enemyTroop){
   const chosen=[];
   if(count<=0) return chosen;
   let available = pool.filter(d=>!usedIds.has(d.id));
+
+  // Siege formations shouldn't include dragons that are actively penalized
+  // against the Siege troop type — they'd just be dead weight (or worse, a
+  // net negative) in a Siege army.
+  if(goal==='siege'){
+    available = available.filter(d=>getAffinityMode(d,'siege')!=='penalty');
+  }
+
   if(available.length<3) return chosen;
 
   // Matches the real optimizer.js: only the top (numArmies*3) dragons by power are ever
