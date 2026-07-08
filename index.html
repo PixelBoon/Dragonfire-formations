@@ -185,6 +185,7 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 .modal h2{margin-top:0;font-size:16px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
 .field-full{grid-column:1/-1;}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
 .subhead{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin:18px 0 8px;}
@@ -341,33 +342,44 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
   <div class="modal">
     <h2 id="modalTitle">Add Dragon</h2>
     <input type="hidden" id="editId">
+
+    <div class="field field-full" style="margin-bottom:14px;">
+      <label>Start from a known dragon (optional)</label>
+      <select id="f_preset" onchange="applyPreset()"></select>
+    </div>
+
     <div class="grid2">
       <div class="field"><label>Name</label><input type="text" id="f_name" placeholder="e.g. Vhagar"></div>
       <div class="field"><label>Rarity</label>
         <select id="f_rarity"><option>Common</option><option>Rare</option><option>Epic</option><option selected>Legendary</option><option>Mythic</option></select>
       </div>
-      <div class="field"><label>Breed</label><input type="text" id="f_breed" placeholder="e.g. Fireborn"></div>
-      <div class="field"><label>Role</label>
-        <select id="f_role"><option>Vanguard</option><option>Left Flank</option><option>Right Flank</option><option>Support</option></select>
+      <div class="field"><label>Breed</label><input type="text" id="f_breed" placeholder="e.g. Warrior"></div>
+      <div class="field"><label>Archetype</label>
+        <select id="f_archetype">
+          <option value="tank">Tank / Taunt</option>
+          <option value="physical">Physical DPS</option>
+          <option value="tactical">Tactical DPS</option>
+          <option value="fire">Fire DPS</option>
+          <option value="healer">Healer / Support</option>
+          <option value="control">Control / Debuffer</option>
+        </select>
       </div>
       <div class="field"><label>Main Damage Type</label>
         <select id="f_damage"><option>Fire</option><option>Physical</option><option>Tactical</option></select>
       </div>
-      <div class="field"><label>Power (in-game number)</label><input type="number" id="f_power" placeholder="e.g. 48000"></div>
+      <div class="field"><label>Power (in-game number)</label><input type="number" id="f_power" placeholder="leave blank to auto-estimate"></div>
       <div class="field"><label>Troop Capacity (optional)</label><input type="number" id="f_capacity" placeholder="optional"></div>
-      <div class="field"><label>Star Rank (1-5)</label><input type="number" id="f_star" min="1" max="5" value="1"></div>
-      <div class="field"><label>Reign Level</label><input type="number" id="f_reign" value="1"></div>
+      <div class="field"><label>Star Rank (1-6)</label><input type="number" id="f_star" min="1" max="6" value="1"></div>
+      <div class="field"><label>Reign Level</label><input type="number" id="f_reign" value="20"></div>
     </div>
 
-    <div class="subhead">Troop Affinity</div>
-    <div class="grid3">
-      <div class="field"><label>Troop type</label>
-        <select id="f_affType"><option value="none">(none)</option><option value="spearmen">Spearmen</option><option value="cavalry">Cavalry</option><option value="archers">Archers</option><option value="shieldbearers">Shieldbearers</option><option value="siege">Siege</option></select>
-      </div>
-      <div class="field"><label>Mode</label>
-        <select id="f_affMode"><option>neutral</option><option>boost</option><option>penalty</option></select>
-      </div>
-      <div class="field"><label>Amount (0–1)</label><input type="number" id="f_affAmount" step="0.05" min="0" max="1" value="0.2"></div>
+    <div class="subhead">Troop Affinity <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">+ boost / · neutral / − penalty</span></div>
+    <div class="grid5">
+      <div class="field"><label>Spearmen</label><select id="f_aff_spearmen"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
+      <div class="field"><label>Cavalry</label><select id="f_aff_cavalry"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
+      <div class="field"><label>Archers</label><select id="f_aff_archers"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
+      <div class="field"><label>Shieldbearers</label><select id="f_aff_shieldbearers"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
+      <div class="field"><label>Siege</label><select id="f_aff_siege"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
     </div>
 
     <div class="subhead">Vanguard / Position Skills (0–1, e.g. 0.10 = +10%)</div>
@@ -376,7 +388,7 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
     <div class="skill-row"><label>Left-flank tactical buff</label><input type="range" id="s_lft" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_lft')"><span class="rv" id="s_lft_rv">0.00</span></div>
     <div class="skill-row"><label>Left-flank fire buff</label><input type="range" id="s_lff" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_lff')"><span class="rv" id="s_lff_rv">0.00</span></div>
 
-    <div class="field field-full" style="margin-top:8px;"><label>Abilities & Synergies</label><input type="text" id="f_abilities" placeholder="comma-separated, e.g. Wildfire Breath, Siege Rend"></div>
+    <div class="field field-full" style="margin-top:8px;"><label>Abilities & Synergies</label><input type="text" id="f_abilities" placeholder="comma-separated, e.g. taunt, burn, wantsBurn"></div>
     <div class="field field-full" style="margin-top:8px;"><label>Notes</label><input type="text" id="f_notes" placeholder="optional"></div>
 
     <div class="modal-actions">
@@ -448,20 +460,24 @@ function openDragonModal(id){
   document.getElementById('editId').value = id || '';
   document.getElementById('deleteBtn').style.display = id ? 'inline-block' : 'none';
   document.getElementById('modalTitle').textContent = id ? 'Edit Dragon' : 'Add Dragon';
+  populatePresetSelect();
+  document.getElementById('f_preset').value = '';
 
   const d = id ? dragons.find(x=>x.id===id) : null;
   document.getElementById('f_name').value = d?.name || '';
   document.getElementById('f_rarity').value = d?.rarity || 'Legendary';
   document.getElementById('f_breed').value = d?.breed || '';
-  document.getElementById('f_role').value = d?.role || 'Vanguard';
+  document.getElementById('f_archetype').value = d?.archetype || 'physical';
   document.getElementById('f_damage').value = d?.damage || 'Fire';
   document.getElementById('f_power').value = d?.power ?? '';
   document.getElementById('f_capacity').value = d?.capacity ?? '';
   document.getElementById('f_star').value = d?.star ?? 1;
-  document.getElementById('f_reign').value = d?.reign ?? 1;
-  document.getElementById('f_affType').value = d?.affinity?.type || 'none';
-  document.getElementById('f_affMode').value = d?.affinity?.mode || 'neutral';
-  document.getElementById('f_affAmount').value = d?.affinity?.amount ?? 0.2;
+  document.getElementById('f_reign').value = d?.reign ?? 20;
+  TROOP_TYPES.forEach(t=>{
+    const sel = document.getElementById('f_aff_'+t);
+    const mode = d?.affinities?.[t];
+    sel.value = mode==='boost' ? '+' : mode==='penalty' ? '-' : '0';
+  });
   document.getElementById('f_abilities').value = d?.abilities || '';
   document.getElementById('f_notes').value = d?.notes || '';
   document.getElementById('s_self').value = d?.skills?.selfDmgReduction ?? 0;
@@ -472,26 +488,69 @@ function openDragonModal(id){
 }
 function closeDragonModal(){ document.getElementById('dragonOverlay').style.display='none'; }
 
+function populatePresetSelect(){
+  const sel = document.getElementById('f_preset');
+  if(sel.options.length) return; // static list, only needs building once
+  const names = REAL_SEED_ROSTER.map(d=>d.name).sort();
+  sel.innerHTML = '<option value="">— Custom dragon —</option>' +
+    names.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+}
+
+// Prefills the form from the real dragon database. Per your usual starting point,
+// star rank defaults to 1 and reign level to 20 rather than the seed's own
+// generic placeholders — edit afterward once you know your dragon's real level.
+function applyPreset(){
+  const name = document.getElementById('f_preset').value;
+  if(!name) return;
+  const seed = REAL_SEED_ROSTER.find(d=>d.name===name);
+  if(!seed) return;
+  document.getElementById('f_name').value = seed.name;
+  document.getElementById('f_rarity').value = cap(seed.rarity);
+  document.getElementById('f_breed').value = cap(seed.breed);
+  document.getElementById('f_archetype').value = seed.role;
+  document.getElementById('f_damage').value = cap(seed.damageType);
+  document.getElementById('f_power').value = '';
+  document.getElementById('f_capacity').value = '';
+  document.getElementById('f_star').value = 1;
+  document.getElementById('f_reign').value = 20;
+  TROOP_TYPES.forEach(t=>{
+    const sel = document.getElementById('f_aff_'+t);
+    sel.value = (seed.affinity && seed.affinity[t]) || '0';
+  });
+  document.getElementById('f_abilities').value = (seed.tags||[]).join(', ');
+  document.getElementById('f_notes').value = seed.notes || '';
+  const vg = seed.vanguard||{};
+  document.getElementById('s_self').value = vg.selfDR || 0;
+  document.getElementById('s_rfp').value = vg.rightPhysical || 0;
+  document.getElementById('s_lft').value = vg.leftTactical || 0;
+  document.getElementById('s_lff').value = vg.leftFire || 0;
+  ['s_self','s_rfp','s_lft','s_lff'].forEach(syncRV);
+}
+
 async function saveDragon(){
   const id = document.getElementById('editId').value;
   const name = document.getElementById('f_name').value.trim();
   if(!name){ alert('Please give this dragon a name.'); return; }
+  const archetype = document.getElementById('f_archetype').value;
+  const affinities = {};
+  TROOP_TYPES.forEach(t=>{
+    const v = document.getElementById('f_aff_'+t).value;
+    affinities[t] = v==='+' ? 'boost' : v==='-' ? 'penalty' : 'neutral';
+  });
   const obj = {
     id: id || ('d_'+Date.now()+Math.floor(Math.random()*1000)),
     name,
     rarity: document.getElementById('f_rarity').value,
     breed: document.getElementById('f_breed').value.trim(),
-    role: document.getElementById('f_role').value,
+    role: inferFlankRole({role:archetype}),
+    archetype,
     damage: document.getElementById('f_damage').value,
     power: Number(document.getElementById('f_power').value)||0,
     capacity: document.getElementById('f_capacity').value ? Number(document.getElementById('f_capacity').value) : null,
     star: Number(document.getElementById('f_star').value)||1,
     reign: Number(document.getElementById('f_reign').value)||1,
-    affinity: {
-      type: document.getElementById('f_affType').value,
-      mode: document.getElementById('f_affMode').value,
-      amount: Number(document.getElementById('f_affAmount').value)||0
-    },
+    affinities,
+    affinity: {type:'none', mode:'neutral', amount:0}, // legacy fallback field, unused when affinities is present
     abilities: document.getElementById('f_abilities').value.trim(),
     notes: document.getElementById('f_notes').value.trim(),
     skills: {
