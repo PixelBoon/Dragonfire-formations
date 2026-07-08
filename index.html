@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Emberline — Dragon Formation Forge</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -208,6 +209,9 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
       <div><h1>Emberline</h1><span>Formation Forge</span></div>
     </div>
 
+    <button class="btn btn-ghost" id="btnAccount" style="display:none;" onclick="toggleAccount()">Sign in</button>
+    <div id="cloudHint" class="hint" style="display:none;">Signed in — your roster syncs across devices.</div>
+
     <div class="roster-head">
       <h2>Your Dragons</h2>
       <span class="count-badge" id="rosterCount">0</span>
@@ -407,23 +411,151 @@ let lastResults = [];
 const STORAGE_KEY_DRAGONS = 'emberline_dragons';
 const STORAGE_KEY_SAVED = 'emberline_saved_formations';
 
-async function persistDragons(){
-  try{ localStorage.setItem(STORAGE_KEY_DRAGONS, JSON.stringify(dragons)); }catch(e){ console.error('save failed', e); }
+// ---- Optional cloud sync (Supabase + Google sign-in) ----
+// Fill in your own free Supabase project's URL + anon key below to let visitors
+// sign in and have their roster follow them across devices/browsers instead of
+// being stuck in one browser's localStorage. Leave the placeholders as-is and
+// this whole feature stays invisible — the tool works fully offline either way.
+// One-time backend setup (free, ~10 minutes):
+//   1. Create a project at https://supabase.com — copy the Project URL and the
+//      "anon public" key (Project Settings → API) into the two constants below.
+//   2. In Supabase → SQL Editor, run:
+//        create table if not exists public.rosters (
+//          user_id    uuid primary key references auth.users (id) on delete cascade,
+//          data       jsonb not null default '{}'::jsonb,
+//          updated_at timestamptz not null default now()
+//        );
+//        alter table public.rosters enable row level security;
+//        create policy "own roster - select" on public.rosters
+//          for select using (auth.uid() = user_id);
+//        create policy "own roster - insert" on public.rosters
+//          for insert with check (auth.uid() = user_id);
+//        create policy "own roster - update" on public.rosters
+//          for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+//   3. Supabase → Authentication → Providers → Google → enable it. You'll need a
+//      Google OAuth client (Google Cloud Console → APIs & Services → Credentials
+//      → OAuth client ID → Web application) — paste its Client ID + Secret into
+//      Supabase, and add Supabase's callback URL (shown on that page) to the
+//      Google client's "Authorized redirect URIs".
+//   4. Supabase → Authentication → URL Configuration → add your site's URL to
+//      "Site URL" / "Redirect URLs".
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+let supabaseClient = null;
+let currentUser = null;
+let cloudMode = false; // true once signed in — the cloud becomes the source of truth
+let cloudSyncTimer = null;
+
+function cloudConfigured(){
+  return SUPABASE_URL && SUPABASE_ANON_KEY &&
+    SUPABASE_URL.indexOf('YOUR_')===-1 && SUPABASE_ANON_KEY.indexOf('YOUR_')===-1;
 }
-async function persistSaved(){
-  try{ localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedFormations)); }catch(e){ console.error('save failed', e); }
+
+function renderAccountButton(){
+  const btn = document.getElementById('btnAccount');
+  const hint = document.getElementById('cloudHint');
+  if(!btn) return;
+  if(currentUser){
+    btn.textContent = 'Sign out';
+    btn.title = 'Signed in as ' + (currentUser.email || 'account') + ' — click to sign out';
+    if(hint) hint.style.display = '';
+  } else {
+    btn.textContent = 'Sign in';
+    btn.title = 'Sign in with Google to sync your roster across devices';
+    if(hint) hint.style.display = 'none';
+  }
 }
-async function loadAll(){
+
+function toggleAccount(){
+  if(!supabaseClient) return;
+  if(currentUser) supabaseClient.auth.signOut();
+  else supabaseClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: location.origin + location.pathname } });
+}
+
+async function pushToCloud(){
+  if(!currentUser || !supabaseClient) return;
   try{
-    const d = localStorage.getItem(STORAGE_KEY_DRAGONS);
-    if(d) dragons = JSON.parse(d);
-  }catch(e){ dragons = []; }
-  try{
-    const s = localStorage.getItem(STORAGE_KEY_SAVED);
-    if(s) savedFormations = JSON.parse(s);
-  }catch(e){ savedFormations = []; }
+    await supabaseClient.from('rosters').upsert(
+      { user_id: currentUser.id, data: { dragons, savedFormations }, updated_at: new Date().toISOString() },
+      { onConflict:'user_id' }
+    );
+  }catch(e){ console.error('[cloud] save failed', e); }
+}
+function scheduleCloudSync(){
+  if(!currentUser) return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(pushToCloud, 800);
+}
+
+function restoreGuestWorkspace(){
+  try{ const d = localStorage.getItem(STORAGE_KEY_DRAGONS); dragons = d ? JSON.parse(d) : []; }catch(e){ dragons = []; }
+  try{ const s = localStorage.getItem(STORAGE_KEY_SAVED); savedFormations = s ? JSON.parse(s) : []; }catch(e){ savedFormations = []; }
   renderRoster();
   renderSaved();
+}
+
+async function onSignedIn(user){
+  if(currentUser && currentUser.id===user.id){ renderAccountButton(); return; } // auth listener can refire for the same session
+  currentUser = user;
+  renderAccountButton();
+
+  let cloudData = null;
+  try{
+    const { data, error } = await supabaseClient.from('rosters').select('data').eq('user_id', user.id).maybeSingle();
+    if(!error && data) cloudData = data.data;
+  }catch(e){ console.error('[cloud] load failed', e); }
+
+  if(cloudData && Array.isArray(cloudData.dragons) && cloudData.dragons.length){
+    dragons = cloudData.dragons;
+    savedFormations = Array.isArray(cloudData.savedFormations) ? cloudData.savedFormations : [];
+    cloudMode = true;
+  } else if(dragons.length){
+    // First sign-in with existing local dragons — seed the cloud with them.
+    cloudMode = true;
+    await pushToCloud();
+  } else {
+    cloudMode = true;
+  }
+  renderRoster();
+  renderSaved();
+  document.getElementById('resultsArea').innerHTML = '';
+}
+
+function onSignedOut(){
+  const was = !!currentUser;
+  currentUser = null;
+  cloudMode = false;
+  renderAccountButton();
+  if(was){ restoreGuestWorkspace(); document.getElementById('resultsArea').innerHTML = ''; }
+}
+
+function initCloud(){
+  const btn = document.getElementById('btnAccount');
+  if(!cloudConfigured() || !window.supabase || !window.supabase.createClient){
+    if(btn) btn.style.display = 'none';
+    return;
+  }
+  if(btn) btn.style.display = '';
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  renderAccountButton();
+  supabaseClient.auth.onAuthStateChange((_event, session)=>{
+    if(session && session.user) onSignedIn(session.user);
+    else onSignedOut();
+  });
+}
+
+async function persistDragons(){
+  if(!cloudMode){ try{ localStorage.setItem(STORAGE_KEY_DRAGONS, JSON.stringify(dragons)); }catch(e){ console.error('save failed', e); } }
+  scheduleCloudSync();
+}
+async function persistSaved(){
+  if(!cloudMode){ try{ localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedFormations)); }catch(e){ console.error('save failed', e); } }
+  scheduleCloudSync();
+}
+async function loadAll(){
+  restoreGuestWorkspace();
+  initCloud();
 }
 loadAll();
 
