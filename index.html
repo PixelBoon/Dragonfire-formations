@@ -974,10 +974,14 @@ function buildSynergy(left, center, right, goal, troop){
 function bestArrangement(trio, goal, enemyTroop){
   // Mirrors the real optimizer's bestArmy(): try every left/vanguard/right ordering
   // AND every troop type (unless one is forced), keep the best-scoring combination.
+  // Siege is excluded from the auto-search for non-Siege goals — Siege troops are
+  // canonically weak in direct combat ("weak to all, bonus vs durability only"), so a
+  // Max Power or DPS army should never get auto-assigned the Siege troop type even if
+  // it happens to score marginally higher due to affinity bonuses.
   let troops;
   if(enemyTroop && enemyTroop!=='none') troops = [enemyTroop];
   else if(goal==='siege') troops = ['siege'];
-  else troops = TROOP_TYPES;
+  else troops = TROOP_TYPES.filter(t=>t!=='siege');
 
   let best=null;
   permutations3(trio).forEach(([l,c,r])=>{
@@ -1256,7 +1260,7 @@ function compareFormations(){
   // Troop type: if you picked one, it's forced; otherwise search all troop
   // types (or force Siege for the Siege goal) and keep the best, same
   // resolution the main optimizer uses — just without touching positions.
-  const troopCandidates = (troop && troop!=='none') ? [troop] : (goal==='siege' ? ['siege'] : TROOP_TYPES);
+  const troopCandidates = (troop && troop!=='none') ? [troop] : (goal==='siege' ? ['siege'] : TROOP_TYPES.filter(t=>t!=='siege'));
   const bestOf = (trio) => {
     let best=null;
     troopCandidates.forEach(t=>{
