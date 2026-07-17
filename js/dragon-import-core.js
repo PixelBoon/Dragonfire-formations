@@ -179,6 +179,43 @@
 
   const VALID_ACTIONS = ['add', 'update', 'skip', 'merge'];
 
+  // ---- Default star rank (bulk apply) ----------------------------------------
+
+  const VALID_STAR_RANKS = [5, 6, 7, 8, 9, 10];
+  function isValidStarRank(v) {
+    const n = Number(v);
+    return VALID_STAR_RANKS.includes(n);
+  }
+
+  /**
+   * Bulk-sets star rank on a roster. Pure — returns a new array, never mutates
+   * the input. Only `star` (and a `starRankSource` tag) is touched; every other
+   * field is preserved via spread. targetIds is optional: when omitted, every
+   * dragon is updated ("apply to all"); when provided, only those ids are
+   * touched (supports future "apply to selected/filtered" UI).
+   * Malformed roster entries (not an object, or missing an id) are reported as
+   * failures rather than thrown, so one bad record can't abort the whole batch.
+   */
+  function applyBulkStarRank(roster, starRank, targetIds) {
+    if (!isValidStarRank(starRank)) {
+      throw new Error(`Invalid star rank "${starRank}". Must be one of ${VALID_STAR_RANKS.join(', ')}.`);
+    }
+    const value = Number(starRank);
+    const idSet = targetIds ? new Set(targetIds) : null;
+    let count = 0;
+    const failures = [];
+    const nextRoster = roster.map((d, i) => {
+      if (!d || typeof d !== 'object' || !d.id) {
+        failures.push({ index: i, error: 'Malformed dragon record — skipped.' });
+        return d;
+      }
+      if (idSet && !idSet.has(d.id)) return d;
+      count++;
+      return { ...d, star: value, starRankSource: 'bulk-default' };
+    });
+    return { roster: nextRoster, count, failures };
+  }
+
   /**
    * Applies one reviewed row to a roster (does not mutate the input array;
    * returns { roster: newRoster, result: {action, name, dragonId} } or throws
@@ -251,13 +288,13 @@
     let workingRoster = roster.slice();
     const results = [];
     const failures = [];
-    rows.forEach((row) => {
+    rows.forEach((row, rowIndex) => {
       try {
         const { roster: nextRoster, result } = applyImportRow(row, workingRoster, opts);
         workingRoster = nextRoster;
-        results.push(result);
+        results.push({ ...result, rowIndex });
       } catch (e) {
-        failures.push({ name: row.name || '(unknown)', error: e.message });
+        failures.push({ name: row.name || '(unknown)', error: e.message, rowIndex });
       }
     });
     return { roster: workingRoster, results, failures };
@@ -270,14 +307,22 @@
       schemaVersion: '1.0',
       exportedAt: exportedAtIso || new Date().toISOString(),
       source: 'dragon-screenshot-import',
-      dragons: results.map((r) => ({
-        name: r.name,
-        dragonId: r.dragonId || null,
-        starRank: r.starRank != null ? r.starRank : null,
-        level: r.level != null ? r.level : null,
-        maxLevel: r.maxLevel != null ? r.maxLevel : null,
-        action: r.action,
-      })),
+      dragons: results.map((r) => {
+        const out = {
+          name: r.name,
+          dragonId: r.dragonId || null,
+          starRank: r.starRank != null ? r.starRank : null,
+          level: r.level != null ? r.level : null,
+          maxLevel: r.maxLevel != null ? r.maxLevel : null,
+          action: r.action,
+        };
+        // Additive only — never renames/removes the original fields above, so
+        // existing consumers of this export keep working unchanged.
+        if (r.starRankSource) out.starRankSource = r.starRankSource;
+        if (r.detectedStarRank !== undefined) out.detectedStarRank = r.detectedStarRank;
+        if (r.starRankOverridden !== undefined) out.starRankOverridden = !!r.starRankOverridden;
+        return out;
+      }),
     };
   }
 
@@ -300,5 +345,8 @@
     buildExportJson,
     exportFilename,
     VALID_ACTIONS,
+    VALID_STAR_RANKS,
+    isValidStarRank,
+    applyBulkStarRank,
   };
 });
