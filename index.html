@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Emberline — Dragon Formation Forge</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/dragon-import-core.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -197,6 +198,38 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 /* modal */
 .overlay{position:fixed;inset:0;background:rgba(5,6,7,0.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
 .modal{background:var(--panel);border:1px solid var(--line);border-radius:8px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;padding:24px 26px;}
+.modal.modal-wide{max-width:920px;}
+
+/* screenshot import */
+.ssi-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.icon-x{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px 8px;}
+.icon-x:hover{color:var(--parchment);}
+.ssi-dropzone{border:2px dashed var(--line);border-radius:8px;padding:34px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;margin-top:8px;}
+.ssi-dropzone:hover, .ssi-dropzone:focus, .ssi-dropzone.dragover{border-color:var(--ember);background:rgba(232,93,44,0.05);outline:none;}
+.ssi-dropzone-text{color:var(--muted);font-size:13px;line-height:1.7;}
+.ssi-file-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;}
+.ssi-file-chip{width:120px;background:var(--panel-raised);border:1px solid var(--line);border-radius:6px;padding:8px;position:relative;}
+.ssi-file-chip img{width:100%;height:80px;object-fit:cover;border-radius:4px;display:block;}
+.ssi-file-chip .ssi-file-name{font-size:10px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ssi-file-chip .ssi-file-status{font-size:9.5px;margin-top:2px;color:var(--ice);}
+.ssi-file-chip .ssi-remove{position:absolute;top:4px;right:4px;background:rgba(5,6,7,0.75);border:none;color:var(--parchment);width:18px;height:18px;border-radius:50%;font-size:11px;cursor:pointer;line-height:1;}
+.ssi-error{background:rgba(178,58,58,0.12);border:1px solid rgba(178,58,58,0.4);color:#e08a8a;border-radius:4px;padding:8px 10px;font-size:12px;margin-top:10px;}
+.ssi-review-table{display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;}
+.ssi-row{display:grid;grid-template-columns:64px 1fr;gap:12px;background:var(--panel-raised);border:1px solid var(--line);border-radius:6px;padding:10px;}
+.ssi-row.ssi-row-flagged{border-color:#e0a23a;}
+.ssi-row img{width:64px;height:64px;object-fit:cover;border-radius:4px;}
+.ssi-row-fields{display:grid;grid-template-columns:1.4fr 0.7fr 0.7fr 1.2fr 1.2fr;gap:8px;align-items:end;}
+.ssi-row-fields .field label{font-size:9px;}
+.ssi-row-fields input, .ssi-row-fields select{padding:6px 7px;font-size:12px;}
+.ssi-flag-bad{border-color:#e0a23a !important;}
+.ssi-tags{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;}
+.ssi-tag{font-size:9.5px;padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:.03em;}
+.ssi-tag-warn{background:rgba(224,162,58,0.15);color:#e0a23a;border:1px solid rgba(224,162,58,0.4);}
+.ssi-tag-dup{background:rgba(232,93,44,0.15);color:var(--ember);border:1px solid rgba(232,93,44,0.4);}
+.ssi-tag-nomatch{background:rgba(139,146,160,0.15);color:var(--muted);border:1px solid var(--line);}
+.ssi-tag-match{background:rgba(79,168,216,0.15);color:var(--ice);border:1px solid rgba(79,168,216,0.4);}
+.ssi-summary{font-size:14px;line-height:1.9;}
+.ssi-summary b{color:var(--gold);}
 .modal h2{margin-top:0;font-size:16px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
@@ -233,6 +266,7 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 
     <button class="btn btn-primary" onclick="openDragonModal()">+ Add Dragon</button>
     <button class="btn btn-ghost" onclick="openImportModal()">⇪ Import roster JSON</button>
+    <button class="btn btn-ghost" onclick="openScreenshotImport()">📸 Import Screenshots</button>
     <button class="btn btn-ghost" onclick="loadSample()">Load sample roster</button>
     <button class="btn btn-ghost btn-danger" onclick="clearRoster()">🗑 Clear all dragons</button>
 
@@ -363,6 +397,61 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeImportModal()">Cancel</button>
       <button class="btn btn-primary" onclick="importRosterJson()">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCREENSHOT IMPORT MODAL -->
+<div class="overlay" id="ssiOverlay" style="display:none;">
+  <div class="modal modal-wide">
+    <div class="ssi-head">
+      <h2 id="ssiTitle">Import Dragons from Screenshots</h2>
+      <button class="icon-x" onclick="closeScreenshotImport()" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Phase 1: upload -->
+    <div id="ssiUploadPhase">
+      <p class="hint" id="ssiConfigNotice" style="margin-bottom:10px;line-height:1.5;"></p>
+      <div id="ssiDropzone" class="ssi-dropzone" tabindex="0" role="button"
+           aria-label="Upload dragon screenshots — drag and drop, or press Enter to choose files"
+           onclick="document.getElementById('ssiFileInput').click()"
+           onkeydown="if(event.key==='Enter'||event.key===' '){document.getElementById('ssiFileInput').click();}">
+        <div class="ssi-dropzone-text">
+          <div style="font-size:26px;">📸</div>
+          Drag & drop screenshots here, or click to choose files<br>
+          <span style="color:var(--muted);font-size:11.5px;">PNG, JPG, JPEG, WEBP · up to 8MB each · up to 10 per batch</span>
+        </div>
+        <input type="file" id="ssiFileInput" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" multiple style="display:none;" onchange="handleSsiFileInput(event)">
+      </div>
+      <div id="ssiFileList" class="ssi-file-list"></div>
+      <div id="ssiUploadError" class="ssi-error" style="display:none;"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeScreenshotImport()">Cancel</button>
+        <button class="btn btn-primary" id="ssiAnalyzeBtn" onclick="analyzeScreenshots()" disabled>Analyze Screenshots</button>
+      </div>
+    </div>
+
+    <!-- Phase 2: review -->
+    <div id="ssiReviewPhase" style="display:none;">
+      <p class="hint" style="margin-bottom:10px;">
+        Review every detected value below before importing — nothing is added or changed until you click Confirm Import.
+        Fields outlined in amber are low-confidence or missing; correct them directly in the table.
+      </p>
+      <div id="ssiReviewTable" class="ssi-review-table"></div>
+      <div id="ssiImportError" class="ssi-error" style="display:none;"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeScreenshotImport()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmScreenshotImport()">Confirm Import</button>
+      </div>
+    </div>
+
+    <!-- Phase 3: summary -->
+    <div id="ssiSummaryPhase" style="display:none;">
+      <div id="ssiSummaryText" class="ssi-summary"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeScreenshotImport()">Close</button>
+        <button class="btn btn-primary" onclick="downloadImportJson()">⬇ Download JSON</button>
+      </div>
     </div>
   </div>
 </div>
@@ -863,6 +952,303 @@ async function importRosterJson(){
   renderRoster();
   closeImportModal();
   alert(`Imported ${imported.length} dragons (replacing any existing dragons with matching IDs). Note: dragons with Power = 0 will score as 0 base power until you edit in real numbers.`);
+}
+
+// ---- Screenshot Import ------------------------------------------------------
+const SSI_MAX_FILES = 10;
+const SSI_MAX_BYTES = 8 * 1024 * 1024; // 8MB
+const SSI_ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+let ssiFiles = [];        // [{id, file, name, dataUrl, mimeType, size, status, errorMsg}]
+let ssiDetections = [];   // flattened rows shown in the review table
+let ssiExportResults = null; // set after confirm, used by the JSON download
+
+function ssiEdgeFunctionAvailable(){
+  return !!(supabaseClient && cloudConfigured());
+}
+
+function openScreenshotImport(){
+  ssiFiles = [];
+  ssiDetections = [];
+  ssiExportResults = null;
+  document.getElementById('ssiUploadPhase').style.display = '';
+  document.getElementById('ssiReviewPhase').style.display = 'none';
+  document.getElementById('ssiSummaryPhase').style.display = 'none';
+  document.getElementById('ssiUploadError').style.display = 'none';
+  document.getElementById('ssiFileInput').value = '';
+  const notice = document.getElementById('ssiConfigNotice');
+  if(ssiEdgeFunctionAvailable()){
+    notice.textContent = 'Screenshots are sent to your configured image-analysis service for automatic detection. You can still correct every value before anything is added to your roster.';
+    notice.style.color = 'var(--muted)';
+  } else {
+    notice.textContent = '⚠ Automatic AI analysis isn\'t configured on this deployment yet. You can still upload screenshots for reference and enter each dragon\'s name, star rank, and level manually in the review step.';
+    notice.style.color = '#e0a23a';
+  }
+  renderSsiFileList();
+  document.getElementById('ssiOverlay').style.display = 'flex';
+
+  const dz = document.getElementById('ssiDropzone');
+  dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('dragover'); };
+  dz.ondragleave = () => dz.classList.remove('dragover');
+  dz.ondrop = (e) => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    addSsiFiles(e.dataTransfer.files);
+  };
+}
+
+function closeScreenshotImport(){
+  // Cancel/close at any phase makes no changes — `dragons` is only ever
+  // touched inside confirmScreenshotImport(), never before.
+  document.getElementById('ssiOverlay').style.display = 'none';
+  ssiFiles = [];
+  ssiDetections = [];
+}
+
+function handleSsiFileInput(event){
+  addSsiFiles(event.target.files);
+}
+
+function addSsiFiles(fileList){
+  const errEl = document.getElementById('ssiUploadError');
+  const errors = [];
+  const incoming = Array.from(fileList || []);
+
+  incoming.forEach((file) => {
+    if(ssiFiles.length >= SSI_MAX_FILES){
+      errors.push(`Only ${SSI_MAX_FILES} screenshots can be processed in one batch — "${file.name}" was not added.`);
+      return;
+    }
+    if(!SSI_ALLOWED_TYPES.has(file.type)){
+      errors.push(`"${file.name}" isn't a supported image type (PNG, JPG, JPEG, WEBP only).`);
+      return;
+    }
+    if(file.size > SSI_MAX_BYTES){
+      errors.push(`"${file.name}" is too large (max ${Math.round(SSI_MAX_BYTES/1024/1024)}MB).`);
+      return;
+    }
+    const id = 'ssi_'+Date.now()+Math.floor(Math.random()*100000);
+    const entry = { id, file, name: file.name, dataUrl: null, mimeType: file.type, size: file.size, status: 'pending', errorMsg: '' };
+    ssiFiles.push(entry);
+    const reader = new FileReader();
+    reader.onload = () => { entry.dataUrl = reader.result; renderSsiFileList(); };
+    reader.onerror = () => { entry.status = 'error'; entry.errorMsg = 'Could not read this file.'; renderSsiFileList(); };
+    reader.readAsDataURL(file);
+  });
+
+  if(errors.length){
+    errEl.style.display = '';
+    errEl.textContent = errors.join(' ');
+  } else {
+    errEl.style.display = 'none';
+  }
+  renderSsiFileList();
+}
+
+function removeSsiFile(id){
+  ssiFiles = ssiFiles.filter(f=>f.id!==id);
+  renderSsiFileList();
+}
+
+function renderSsiFileList(){
+  const list = document.getElementById('ssiFileList');
+  list.innerHTML = ssiFiles.map(f=>`
+    <div class="ssi-file-chip">
+      <button class="ssi-remove" onclick="removeSsiFile('${f.id}')" aria-label="Remove ${escapeHtml(f.name)}">✕</button>
+      ${f.dataUrl ? `<img src="${f.dataUrl}" alt="${escapeHtml(f.name)}">` : `<div style="height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;">loading…</div>`}
+      <div class="ssi-file-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+      <div class="ssi-file-status">${escapeHtml(ssiStatusLabel(f))}</div>
+    </div>
+  `).join('');
+  document.getElementById('ssiAnalyzeBtn').disabled = ssiFiles.length===0 || ssiFiles.some(f=>!f.dataUrl && f.status!=='error');
+}
+
+function ssiStatusLabel(f){
+  if(f.status==='error') return '⚠ '+f.errorMsg;
+  if(f.status==='analyzing') return 'Analyzing…';
+  if(f.status==='done') return 'Analyzed';
+  return f.dataUrl ? 'Ready' : 'Loading…';
+}
+
+// Calls the Edge Function if configured; otherwise returns an honest
+// "needs manual review" stub. Never fabricates detected values.
+async function analyzeOneScreenshot(entry){
+  if(!ssiEdgeFunctionAvailable()){
+    return DragonImportCore.sanitizeAiResponse({
+      dragons: [{ name: null, starRank: null, level: null, maxLevel: null, confidence: {}, needsReview: true,
+        reviewNotes: ['Automatic AI analysis is not configured — enter values manually from the screenshot.'] }]
+    }, entry.name);
+  }
+  try{
+    const base64 = entry.dataUrl.split(',')[1] || '';
+    const { data, error } = await supabaseClient.functions.invoke('analyze-dragon-screenshot', {
+      body: { images: [{ filename: entry.name, mimeType: entry.mimeType, base64 }] }
+    });
+    if(error) throw error;
+    const first = data && Array.isArray(data.results) ? data.results[0] : null;
+    if(!first) throw new Error('No result returned from the analysis service.');
+    if(first.error) {
+      return { dragons: [], errors: [first.error] };
+    }
+    return DragonImportCore.sanitizeAiResponse(first.response, entry.name);
+  }catch(e){
+    return { dragons: [], errors: ['Analysis failed: ' + (e.message || 'unknown error') + ' — you can retry this screenshot or enter its values manually.'] };
+  }
+}
+
+async function analyzeScreenshots(){
+  if(ssiFiles.length===0) return;
+  document.getElementById('ssiAnalyzeBtn').disabled = true;
+
+  const allDetections = [];
+  for(const entry of ssiFiles){
+    entry.status = 'analyzing';
+    renderSsiFileList();
+    const { dragons: found, errors } = await analyzeOneScreenshot(entry);
+    entry.status = 'done';
+    if(found.length===0){
+      allDetections.push({
+        sourceFile: entry.name, thumbnail: entry.dataUrl,
+        name: null, starRank: null, level: null, maxLevel: null,
+        confidence: {}, needsReview: true,
+        reviewNotes: errors.length ? errors : ['No dragon detected in this screenshot.'],
+      });
+    } else {
+      found.forEach(d => allDetections.push({ ...d, thumbnail: entry.dataUrl }));
+    }
+  }
+  renderSsiFileList();
+
+  // Match each detection against the current roster, and flag in-batch duplicates.
+  const dupIndices = DragonImportCore.findBatchDuplicates(allDetections);
+  ssiDetections = allDetections.map((d, i) => {
+    const match = DragonImportCore.matchDragon(d, dragons);
+    return {
+      ...d,
+      matchType: match.matchType,
+      matchedDragonId: match.dragon ? match.dragon.id : null,
+      isDuplicateInBatch: dupIndices.has(i),
+      action: match.dragon && match.matchType!=='none' ? 'update' : (d.name ? 'add' : 'skip'),
+    };
+  });
+
+  document.getElementById('ssiUploadPhase').style.display = 'none';
+  document.getElementById('ssiReviewPhase').style.display = '';
+  renderSsiReviewTable();
+}
+
+function ssiRosterOptions(selectedId){
+  return '<option value="">— none —</option>' + dragons.map(d=>
+    `<option value="${d.id}" ${d.id===selectedId?'selected':''}>${escapeHtml(d.name)} (Lv.${d.reign}, ★${d.star})</option>`
+  ).join('');
+}
+
+function renderSsiReviewTable(){
+  const el = document.getElementById('ssiReviewTable');
+  el.innerHTML = ssiDetections.map((d, i) => {
+    const flagged = d.needsReview || d.isDuplicateInBatch;
+    const tags = [];
+    if(d.isDuplicateInBatch) tags.push('<span class="ssi-tag ssi-tag-dup">Possible duplicate in batch</span>');
+    if(d.matchType==='fuzzy') tags.push('<span class="ssi-tag ssi-tag-match">Fuzzy match — please confirm</span>');
+    else if(d.matchType!=='none') tags.push(`<span class="ssi-tag ssi-tag-match">Matched (${escapeHtml(d.matchType)})</span>`);
+    else tags.push('<span class="ssi-tag ssi-tag-nomatch">No existing match found</span>');
+    (d.reviewNotes||[]).forEach(n => tags.push(`<span class="ssi-tag ssi-tag-warn">${escapeHtml(n)}</span>`));
+
+    const nameBad = !d.name;
+    const starBad = d.starRank==null;
+    const levelBad = d.level==null;
+
+    return `
+      <div class="ssi-row ${flagged?'ssi-row-flagged':''}" data-idx="${i}">
+        ${d.thumbnail ? `<img src="${d.thumbnail}" alt="Screenshot of ${escapeHtml(d.name||'unidentified dragon')}">` : `<div style="width:64px;height:64px;background:var(--panel);border-radius:4px;"></div>`}
+        <div class="ssi-row-fields">
+          <div class="field"><label>Name</label><input type="text" value="${escapeHtml(d.name||'')}" class="${nameBad?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'name',this.value)"></div>
+          <div class="field"><label>Star</label><input type="number" min="1" max="10" value="${d.starRank??''}" class="${starBad?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'starRank',this.value)"></div>
+          <div class="field"><label>Level</label><input type="number" min="1" max="200" value="${d.level??''}" class="${levelBad?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'level',this.value)"></div>
+          <div class="field"><label>Matching dragon</label>
+            <select onchange="updateSsiField(${i},'matchedDragonId',this.value)">${ssiRosterOptions(d.matchedDragonId)}</select>
+          </div>
+          <div class="field"><label>Action</label>
+            <select onchange="updateSsiField(${i},'action',this.value)">
+              <option value="add" ${d.action==='add'?'selected':''}>Add as new dragon</option>
+              <option value="update" ${d.action==='update'?'selected':''}>Update existing dragon</option>
+              <option value="merge" ${d.action==='merge'?'selected':''}>Merge with selected</option>
+              <option value="skip" ${d.action==='skip'?'selected':''}>Skip</option>
+            </select>
+          </div>
+          <div class="ssi-tags">${tags.join('')}<span style="color:var(--muted);font-size:9.5px;margin-left:auto;">from ${escapeHtml(d.sourceFile)}</span></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function updateSsiField(i, field, value){
+  const d = ssiDetections[i];
+  if(!d) return;
+  if(field==='starRank' || field==='level'){
+    d[field] = value===''? null : Number(value);
+  } else {
+    d[field] = value===''? null : value;
+  }
+  if(field==='matchedDragonId' && value && d.action==='add') d.action = 'update';
+  // Re-render just the flag styling for this row without losing focus on the whole table.
+  renderSsiReviewTable();
+}
+
+async function confirmScreenshotImport(){
+  const errEl = document.getElementById('ssiImportError');
+  errEl.style.display = 'none';
+
+  const rows = ssiDetections.map(d => ({
+    action: d.action,
+    name: d.name,
+    starRank: d.starRank,
+    level: d.level,
+    maxLevel: d.maxLevel,
+    matchedDragonId: d.matchedDragonId,
+  }));
+
+  const { roster: nextRoster, results, failures } = DragonImportCore.applyImportBatch(rows, dragons, {
+    makeId: () => 'ssi_'+Date.now()+Math.floor(Math.random()*100000)
+  });
+
+  dragons = nextRoster;
+  await persistDragons();
+  renderRoster();
+
+  ssiExportResults = results.map((r, i) => ({
+    name: r.name,
+    dragonId: r.dragonId,
+    starRank: rows[i] ? rows[i].starRank : null,
+    level: rows[i] ? rows[i].level : null,
+    maxLevel: rows[i] ? rows[i].maxLevel : null,
+    action: r.action,
+  }));
+
+  const counts = { added:0, updated:0, merged:0, skipped:0 };
+  results.forEach(r=>{ if(counts[r.action]!=null) counts[r.action]++; });
+
+  document.getElementById('ssiReviewPhase').style.display = 'none';
+  document.getElementById('ssiSummaryPhase').style.display = '';
+  document.getElementById('ssiSummaryText').innerHTML = `
+    <div><b>${counts.added}</b> added</div>
+    <div><b>${counts.updated}</b> updated</div>
+    <div><b>${counts.merged}</b> merged</div>
+    <div><b>${counts.skipped}</b> skipped</div>
+    <div style="color:${failures.length?'#e08a8a':'var(--muted)'};"><b>${failures.length}</b> failed${failures.length?': '+failures.map(f=>escapeHtml(f.name)+' — '+escapeHtml(f.error)).join('; '):''}</div>
+  `;
+}
+
+function downloadImportJson(){
+  if(!ssiExportResults) return;
+  const json = DragonImportCore.buildExportJson(ssiExportResults);
+  const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = DragonImportCore.exportFilename();
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function combinations3(arr){
