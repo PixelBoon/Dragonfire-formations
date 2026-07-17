@@ -98,6 +98,14 @@ h1,h2,h3,.display{font-family:'Cinzel',serif;letter-spacing:0.04em;}
 
 .empty-note{color:var(--muted);font-size:12.5px;line-height:1.5;padding:16px 4px;text-align:center;}
 
+.default-level-block{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;}
+.default-level-label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;}
+.segmented{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;}
+.seg-btn{flex:1;text-align:center;padding:7px 0;font-family:'JetBrains Mono';font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;border-right:1px solid var(--line);transition:background .15s,color .15s;}
+.seg-btn:last-child{border-right:none;}
+.seg-btn:hover{background:var(--panel-raised);color:var(--parchment);}
+.seg-btn.selected{background:var(--ember);color:#100a08;font-weight:600;}
+
 /* controls bar */
 .controls{
   background:var(--panel);border:1px solid var(--line);border-radius:6px;
@@ -148,6 +156,10 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 .fc-total .val{font-family:'JetBrains Mono';font-size:22px;color:var(--gold);font-weight:600;}
 .fc-sublabel{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:-4px;}
 .fc-raw{font-family:'JetBrains Mono';font-size:12px;color:var(--ice);margin-bottom:2px;}
+.fc-btn-row{display:flex;gap:6px;}
+.formation-card-full.formation-locked{border-color:var(--gold);background:linear-gradient(135deg, rgba(201,162,39,0.06), var(--panel));}
+.locked-tag{font-size:9px;font-weight:700;letter-spacing:.08em;color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px;vertical-align:middle;}
+.lock-btn.locked{border-color:var(--gold);color:var(--gold);}
 .slot-role{font-size:10px;color:var(--ice);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
 .why-box{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);}
 .why-title{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;}
@@ -223,6 +235,18 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
     <button class="btn btn-ghost" onclick="openImportModal()">⇪ Import roster JSON</button>
     <button class="btn btn-ghost" onclick="loadSample()">Load sample roster</button>
     <button class="btn btn-ghost btn-danger" onclick="clearRoster()">🗑 Clear all dragons</button>
+
+    <div class="default-level-block">
+      <label class="default-level-label">Default All Dragon Levels</label>
+      <div class="segmented" id="defaultLevelSegmented">
+        <div class="seg-btn" onclick="selectDefaultLevel(30, this)">30</div>
+        <div class="seg-btn" onclick="selectDefaultLevel(35, this)">35</div>
+        <div class="seg-btn selected" onclick="selectDefaultLevel(40, this)">40</div>
+        <div class="seg-btn" onclick="selectDefaultLevel(45, this)">45</div>
+        <div class="seg-btn" onclick="selectDefaultLevel(50, this)">50</div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:8px;width:100%;" onclick="applyDefaultLevel()">Apply to All Dragons</button>
+    </div>
 
     <div id="dragonList" class="dragon-list"></div>
   </div>
@@ -408,10 +432,12 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 <script>
 let dragons = [];
 let savedFormations = [];
+let lockedFormations = []; // [{id, goal, dragonIds:[leftId,centerId,rightId]}] — pinned formations excluded from regeneration
 let lastResults = [];
 
 const STORAGE_KEY_DRAGONS = 'emberline_dragons';
 const STORAGE_KEY_SAVED = 'emberline_saved_formations';
+const STORAGE_KEY_LOCKED = 'emberline_locked_formations';
 
 // ---- Optional cloud sync (Supabase + Google sign-in) ----
 // Fill in your own free Supabase project's URL + anon key below to let visitors
@@ -479,7 +505,7 @@ async function pushToCloud(){
   if(!currentUser || !supabaseClient) return;
   try{
     await supabaseClient.from('rosters').upsert(
-      { user_id: currentUser.id, data: { dragons, savedFormations }, updated_at: new Date().toISOString() },
+      { user_id: currentUser.id, data: { dragons, savedFormations, lockedFormations }, updated_at: new Date().toISOString() },
       { onConflict:'user_id' }
     );
   }catch(e){ console.error('[cloud] save failed', e); }
@@ -493,6 +519,7 @@ function scheduleCloudSync(){
 function restoreGuestWorkspace(){
   try{ const d = localStorage.getItem(STORAGE_KEY_DRAGONS); dragons = d ? JSON.parse(d) : []; }catch(e){ dragons = []; }
   try{ const s = localStorage.getItem(STORAGE_KEY_SAVED); savedFormations = s ? JSON.parse(s) : []; }catch(e){ savedFormations = []; }
+  try{ const l = localStorage.getItem(STORAGE_KEY_LOCKED); lockedFormations = l ? JSON.parse(l) : []; }catch(e){ lockedFormations = []; }
   renderRoster();
   renderSaved();
 }
@@ -511,6 +538,7 @@ async function onSignedIn(user){
   if(cloudData && Array.isArray(cloudData.dragons) && cloudData.dragons.length){
     dragons = cloudData.dragons;
     savedFormations = Array.isArray(cloudData.savedFormations) ? cloudData.savedFormations : [];
+    lockedFormations = Array.isArray(cloudData.lockedFormations) ? cloudData.lockedFormations : [];
     cloudMode = true;
   } else if(dragons.length){
     // First sign-in with existing local dragons — seed the cloud with them.
@@ -553,6 +581,10 @@ async function persistDragons(){
 }
 async function persistSaved(){
   if(!cloudMode){ try{ localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedFormations)); }catch(e){ console.error('save failed', e); } }
+  scheduleCloudSync();
+}
+async function persistLocked(){
+  if(!cloudMode){ try{ localStorage.setItem(STORAGE_KEY_LOCKED, JSON.stringify(lockedFormations)); }catch(e){ console.error('save failed', e); } }
   scheduleCloudSync();
 }
 async function loadAll(){
@@ -720,6 +752,30 @@ async function clearRoster(){
   await persistDragons();
   renderRoster();
   document.getElementById('resultsArea').innerHTML = '';
+}
+
+// ---- Default All Dragon Levels ----
+let selectedDefaultLevel = 40;
+function selectDefaultLevel(level, el){
+  selectedDefaultLevel = level;
+  document.querySelectorAll('#defaultLevelSegmented .seg-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function applyDefaultLevel(){
+  const count = dragons.length;
+  if(count===0){ alert('No dragons in your roster yet.'); return; }
+  const level = selectedDefaultLevel;
+  const ok = confirm(`Set all ${count} dragons to level ${level}?\n\nThis will replace the current level saved for every dragon. Other dragon information will not be changed.`);
+  if(!ok) return; // Cancel makes no changes.
+
+  // Only touch reign (Level) — star rank, power, affinities, tags, vanguard
+  // skills, name, id, and everything else is left exactly as-is.
+  dragons.forEach(d=>{ d.reign = level; });
+
+  await persistDragons();
+  renderRoster();          // refresh the dragon list immediately, no reload
+  document.getElementById('resultsArea').innerHTML = ''; // clear stale formations computed under old levels
 }
 
 const TROOP_TYPES = ['spearmen','cavalry','archers','shieldbearers','siege'];
@@ -973,17 +1029,21 @@ function buildSynergy(left, center, right, goal, troop){
   return {troop, totalPct, lines, warnings, score, baseSum:basePower};
 }
 
+// Shared troop-candidate resolution: Siege is excluded from the auto-search for
+// non-Siege goals — Siege troops are canonically weak in direct combat ("weak to
+// all, bonus vs durability only"), so a Max Power or DPS army should never get
+// auto-assigned the Siege troop type even if it happens to score marginally
+// higher due to affinity bonuses.
+function troopCandidatesFor(goal, enemyTroop){
+  if(enemyTroop && enemyTroop!=='none') return [enemyTroop];
+  if(goal==='siege') return ['siege'];
+  return TROOP_TYPES.filter(t=>t!=='siege');
+}
+
 function bestArrangement(trio, goal, enemyTroop){
   // Mirrors the real optimizer's bestArmy(): try every left/vanguard/right ordering
   // AND every troop type (unless one is forced), keep the best-scoring combination.
-  // Siege is excluded from the auto-search for non-Siege goals — Siege troops are
-  // canonically weak in direct combat ("weak to all, bonus vs durability only"), so a
-  // Max Power or DPS army should never get auto-assigned the Siege troop type even if
-  // it happens to score marginally higher due to affinity bonuses.
-  let troops;
-  if(enemyTroop && enemyTroop!=='none') troops = [enemyTroop];
-  else if(goal==='siege') troops = ['siege'];
-  else troops = TROOP_TYPES.filter(t=>t!=='siege');
+  const troops = troopCandidatesFor(goal, enemyTroop);
 
   let best=null;
   permutations3(trio).forEach(([l,c,r])=>{
@@ -993,6 +1053,21 @@ function bestArrangement(trio, goal, enemyTroop){
         best = {left:l, center:c, right:r, synergy:syn};
       }
     });
+  });
+  return best;
+}
+
+// For locked formations: score the exact left/vanguard/right placement the user
+// locked in (no permutation search), but still pick the best troop type for it —
+// so a locked formation stays put positionally even if dragons' power changes.
+function evaluateFixedSlots(left, center, right, goal, enemyTroop){
+  const troops = troopCandidatesFor(goal, enemyTroop);
+  let best=null;
+  troops.forEach(t=>{
+    const syn = buildSynergy(left, center, right, goal, t);
+    if(!best || syn.score>best.synergy.score){
+      best = {left, center, right, synergy:syn};
+    }
   });
   return best;
 }
@@ -1067,6 +1142,19 @@ function pickArmies(pool, usedIds, goal, count, enemyTroop){
   return chosen;
 }
 
+// Resolves a locked formation's current dragon data and re-scores it at its
+// fixed slots (position never changes on lock, but power/synergy can if you've
+// since edited a dragon's stats). Returns null if a locked dragon no longer
+// exists in the roster (e.g. deleted).
+function resolveLockedFormation(lock, enemyTroop){
+  const l = dragons.find(d=>d.id===lock.dragonIds[0]);
+  const c = dragons.find(d=>d.id===lock.dragonIds[1]);
+  const r = dragons.find(d=>d.id===lock.dragonIds[2]);
+  if(!l||!c||!r) return null;
+  const best = evaluateFixedSlots(l,c,r,lock.goal,enemyTroop);
+  return {...best, goal:lock.goal, lockId:lock.id};
+}
+
 function optimizeAll(){
   if(dragons.length<3){
     document.getElementById('resultsArea').innerHTML = `<div class="empty-note">You need at least 3 dragons in your roster to build a formation.</div>`;
@@ -1078,11 +1166,37 @@ function optimizeAll(){
   const enemyTroop = document.getElementById('enemyTroop').value;
 
   const usedIds = new Set();
-  // Power armies get first pick of the roster, as requested.
-  const powerArmies = pickArmies(dragons, usedIds, 'power', numPower, enemyTroop);
-  // Siege and DPS armies are built only from whoever's left over.
-  const siegeArmies = pickArmies(dragons, usedIds, 'siege', numSiege, enemyTroop);
-  const dpsArmies = pickArmies(dragons, usedIds, 'dps', numDps, enemyTroop);
+
+  // Locked formations are resolved first and their dragons excluded pool-wide,
+  // before anything else gets generated — they never get reshuffled or reused.
+  const staleLocks = [];
+  function lockedFor(goal){
+    return lockedFormations.filter(lf=>lf.goal===goal).map(lf=>{
+      const resolved = resolveLockedFormation(lf, enemyTroop);
+      if(!resolved){ staleLocks.push(lf.id); return null; }
+      [resolved.left.id, resolved.center.id, resolved.right.id].forEach(id=>usedIds.add(id));
+      return resolved;
+    }).filter(Boolean);
+  }
+  const lockedPower = lockedFor('power');
+  const lockedSiege = lockedFor('siege');
+  const lockedDps = lockedFor('dps');
+
+  // Drop any locks whose dragons no longer exist in the roster.
+  if(staleLocks.length){
+    lockedFormations = lockedFormations.filter(lf=>!staleLocks.includes(lf.id));
+    persistLocked();
+  }
+
+  // Generate only however many MORE are needed to reach the requested count for
+  // each goal, on top of what's already locked. Power gets first pick, as requested.
+  const freshPower = pickArmies(dragons, usedIds, 'power', Math.max(0, numPower-lockedPower.length), enemyTroop);
+  const freshSiege = pickArmies(dragons, usedIds, 'siege', Math.max(0, numSiege-lockedSiege.length), enemyTroop);
+  const freshDps = pickArmies(dragons, usedIds, 'dps', Math.max(0, numDps-lockedDps.length), enemyTroop);
+
+  const powerArmies = [...lockedPower, ...freshPower];
+  const siegeArmies = [...lockedSiege, ...freshSiege];
+  const dpsArmies = [...lockedDps, ...freshDps];
 
   lastResults = [...powerArmies, ...siegeArmies, ...dpsArmies];
   renderResults(powerArmies, siegeArmies, dpsArmies);
@@ -1100,16 +1214,23 @@ function formationCard(c, rank, globalIndex, badgeClass){
     const pos = l.pct>=0;
     return `<div class="why-line ${pos?'':'why-neg'}">${pos?'+':''}${l.pct.toFixed(1)}% ${escapeHtml(l.label)}</div>`;
   }).join('');
+  const isLocked = !!c.lockId;
+  const lockBtn = isLocked
+    ? `<button class="btn btn-sm btn-ghost lock-btn locked" onclick="toggleLock(${globalIndex})">🔒 Unlock</button>`
+    : `<button class="btn btn-sm btn-ghost lock-btn" onclick="toggleLock(${globalIndex})">🔓 Lock</button>`;
   return `
-    <div class="formation-card-full">
+    <div class="formation-card-full ${isLocked?'formation-locked':''}">
       <div class="fc-head">
-        <div class="rank-badge ${badgeClass}">${rank}</div>
-        <div class="fc-troop">${TROOP_ICONS[syn.troop]||''} ${TROOP_LABELS[syn.troop]||syn.troop} <span class="fc-synergy" style="color:${synColor};">${syn.totalPct>=0?'+':''}${syn.totalPct.toFixed(1)}% synergy</span></div>
+        <div class="rank-badge ${badgeClass}">${isLocked?'🔒':rank}</div>
+        <div class="fc-troop">${TROOP_ICONS[syn.troop]||''} ${TROOP_LABELS[syn.troop]||syn.troop} <span class="fc-synergy" style="color:${synColor};">${syn.totalPct>=0?'+':''}${syn.totalPct.toFixed(1)}% synergy</span>${isLocked?' <span class="locked-tag">LOCKED</span>':''}</div>
         <div class="fc-total">
           <div class="val">${Math.round(syn.score).toLocaleString()}</div>
           <div class="fc-sublabel">with synergy</div>
           <div class="fc-raw">${Math.round(syn.baseSum).toLocaleString()} raw power</div>
-          <button class="btn btn-sm btn-ghost" onclick="saveFormation(${globalIndex})">☆ Save</button>
+          <div class="fc-btn-row">
+            ${lockBtn}
+            <button class="btn btn-sm btn-ghost" onclick="saveFormation(${globalIndex})">☆ Save</button>
+          </div>
         </div>
       </div>
       <div class="slots">
@@ -1174,6 +1295,24 @@ async function saveFormation(i){
   });
   await persistSaved();
   renderSaved();
+}
+
+async function toggleLock(i){
+  const c = lastResults[i];
+  if(!c) return;
+  if(c.lockId){
+    // Already locked — unlock it.
+    lockedFormations = lockedFormations.filter(lf=>lf.id!==c.lockId);
+  } else {
+    // Not locked — lock this exact formation and exclude its dragons going forward.
+    lockedFormations.push({
+      id: 'lock_'+Date.now()+Math.floor(Math.random()*10000),
+      goal: c.goal,
+      dragonIds: [c.left.id, c.center.id, c.right.id]
+    });
+  }
+  await persistLocked();
+  optimizeAll(); // regenerate immediately so the lock/unlock takes effect right away
 }
 
 function renderSaved(){
