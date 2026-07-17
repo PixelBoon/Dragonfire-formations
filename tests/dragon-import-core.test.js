@@ -199,6 +199,20 @@ test('batch import: one bad row fails without blocking or corrupting the good ro
   assert.ok(finalRoster.some((d) => d.name === 'GoodTwo'));
 });
 
+test('batch results/failures carry the original row index, so callers can correlate correctly after a partial failure', () => {
+  const rows = [
+    { action: 'add', name: 'First', starRank: 5, level: 20 },
+    { action: 'update', matchedDragonId: 'does-not-exist', starRank: 1, level: 1 }, // fails — index 1
+    { action: 'add', name: 'Third', starRank: 3, level: 30 },
+  ];
+  const { results, failures } = Core.applyImportBatch(rows, roster);
+  assert.strictEqual(results[0].rowIndex, 0);
+  assert.strictEqual(results[0].name, 'First');
+  assert.strictEqual(results[1].rowIndex, 2, 'the second SUCCESSFUL result corresponds to row index 2, not array position 1');
+  assert.strictEqual(results[1].name, 'Third');
+  assert.strictEqual(failures[0].rowIndex, 1);
+});
+
 console.log('\nbuildExportJson / exportFilename');
 
 test('export JSON matches the required schema', () => {
@@ -218,6 +232,96 @@ test('export JSON matches the required schema', () => {
 test('export filename matches the required pattern', () => {
   const name = Core.exportFilename(new Date('2026-07-17T09:05:03Z'));
   assert.ok(/^dragons-import-\d{4}-\d{2}-\d{2}-\d{6}\.json$/.test(name), name);
+});
+
+console.log('\nisValidStarRank / applyBulkStarRank');
+
+const starRoster = [
+  { id: 's1', name: 'A', star: 1, reign: 20, power: 5000, notes: 'keep', abilities: 'taunt' },
+  { id: 's2', name: 'B', star: 2, reign: 25, power: 6000, notes: 'keep too', abilities: 'heal' },
+  { id: 's3', name: 'C', star: 3, reign: 30, power: 7000 },
+];
+
+[5, 6, 7, 8, 9, 10].forEach((v) => {
+  test(`applying ${v}★ to all dragons sets every star to ${v}`, () => {
+    const { roster: next, count } = Core.applyBulkStarRank(starRoster, v);
+    assert.strictEqual(count, starRoster.length);
+    assert.ok(next.every((d) => d.star === v));
+  });
+});
+
+test('unsupported star rank values are rejected', () => {
+  [0, 1, 4, 11, 20, 'abc', null, undefined].forEach((bad) => {
+    assert.throws(() => Core.applyBulkStarRank(starRoster, bad), new RegExp('Invalid star rank'));
+  });
+});
+
+test('isValidStarRank accepts only 5-10', () => {
+  [5,6,7,8,9,10].forEach((v) => assert.strictEqual(Core.isValidStarRank(v), true));
+  [1,2,3,4,11,0,-1].forEach((v) => assert.strictEqual(Core.isValidStarRank(v), false));
+});
+
+test('bulk star rank preserves all unrelated fields', () => {
+  const { roster: next } = Core.applyBulkStarRank(starRoster, 9);
+  const a = next.find((d) => d.id === 's1');
+  assert.strictEqual(a.name, 'A');
+  assert.strictEqual(a.reign, 20, 'level must be untouched');
+  assert.strictEqual(a.power, 5000, 'power must be untouched');
+  assert.strictEqual(a.notes, 'keep', 'notes must be untouched');
+  assert.strictEqual(a.abilities, 'taunt', 'abilities must be untouched');
+});
+
+test('bulk star rank does not mutate the input roster (supports a real Cancel)', () => {
+  const before = JSON.parse(JSON.stringify(starRoster));
+  Core.applyBulkStarRank(starRoster, 7);
+  assert.deepStrictEqual(starRoster, before);
+});
+
+test('applying only to a targeted subset (selected/filtered dragons) leaves the rest untouched', () => {
+  const { roster: next, count } = Core.applyBulkStarRank(starRoster, 10, ['s1', 's3']);
+  assert.strictEqual(count, 2);
+  assert.strictEqual(next.find((d) => d.id === 's1').star, 10);
+  assert.strictEqual(next.find((d) => d.id === 's3').star, 10);
+  assert.strictEqual(next.find((d) => d.id === 's2').star, 2, 's2 was not targeted and must be unchanged');
+});
+
+test('applying to an empty targeted subset updates zero dragons', () => {
+  const { roster: next, count } = Core.applyBulkStarRank(starRoster, 8, []);
+  assert.strictEqual(count, 0);
+  assert.ok(next.every((d, i) => d.star === starRoster[i].star));
+});
+
+test('malformed roster entries are reported as failures, not thrown, and do not block the rest', () => {
+  const mixed = [{ id: 'ok1', name: 'Fine', star: 1 }, null, { id: 'ok2', name: 'AlsoFine', star: 2 }];
+  const { roster: next, count, failures } = Core.applyBulkStarRank(mixed, 6);
+  assert.strictEqual(failures.length, 1);
+  assert.strictEqual(count, 2);
+  assert.strictEqual(next[0].star, 6);
+  assert.strictEqual(next[2].star, 6);
+});
+
+test('bulk-applied dragons are tagged starRankSource: bulk-default', () => {
+  const { roster: next } = Core.applyBulkStarRank(starRoster, 5);
+  assert.ok(next.every((d) => d.starRankSource === 'bulk-default'));
+});
+
+console.log('\nJSON export includes star-rank-source fields additively');
+
+test('export includes starRankSource/detectedStarRank/starRankOverridden when present, without breaking existing fields', () => {
+  const results = [
+    { name: 'Vhagar', dragonId: 'd1', starRank: 8, level: 34, maxLevel: 50, action: 'updated', starRankSource: 'import-override', detectedStarRank: 6, starRankOverridden: true },
+    { name: 'Plain', dragonId: 'd2', starRank: 3, level: 10, maxLevel: null, action: 'added' }, // no star-rank-source fields at all
+  ];
+  const json = Core.buildExportJson(results);
+  assert.strictEqual(json.dragons[0].starRank, 8);
+  assert.strictEqual(json.dragons[0].starRankSource, 'import-override');
+  assert.strictEqual(json.dragons[0].detectedStarRank, 6);
+  assert.strictEqual(json.dragons[0].starRankOverridden, true);
+  // existing fields still intact (non-breaking)
+  assert.strictEqual(json.dragons[0].action, 'updated');
+  assert.strictEqual(json.dragons[0].level, 34);
+  // row with no override info simply omits those keys rather than emitting nulls/false noise
+  assert.strictEqual('starRankSource' in json.dragons[1], false);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
