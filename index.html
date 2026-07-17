@@ -230,6 +230,12 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 .ssi-tag-match{background:rgba(79,168,216,0.15);color:var(--ice);border:1px solid rgba(79,168,216,0.4);}
 .ssi-summary{font-size:14px;line-height:1.9;}
 .ssi-summary b{color:var(--gold);}
+.ssi-override-block{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--panel-raised);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:12px;}
+.ssi-override-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--parchment);cursor:pointer;user-select:none;}
+.ssi-override-check input{accent-color:var(--ember);}
+.ssi-override-segmented{width:220px;}
+.ssi-star-detected{font-size:10px;color:var(--muted);text-decoration:line-through;margin-left:4px;}
+.ssi-star-override-badge{font-size:9px;color:var(--gold);text-transform:uppercase;letter-spacing:.04em;margin-left:4px;}
 .modal h2{margin-top:0;font-size:16px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
@@ -280,6 +286,19 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
         <div class="seg-btn" onclick="selectDefaultLevel(50, this)">50</div>
       </div>
       <button class="btn btn-primary" style="margin-top:8px;width:100%;" onclick="applyDefaultLevel()">Apply to All Dragons</button>
+    </div>
+
+    <div class="default-level-block">
+      <label class="default-level-label">Default All Dragon Star Ranks</label>
+      <div class="segmented" id="defaultStarSegmented">
+        <div class="seg-btn" onclick="selectDefaultStarRank(5, this)">5★</div>
+        <div class="seg-btn" onclick="selectDefaultStarRank(6, this)">6★</div>
+        <div class="seg-btn" onclick="selectDefaultStarRank(7, this)">7★</div>
+        <div class="seg-btn selected" onclick="selectDefaultStarRank(8, this)">8★</div>
+        <div class="seg-btn" onclick="selectDefaultStarRank(9, this)">9★</div>
+        <div class="seg-btn" onclick="selectDefaultStarRank(10, this)">10★</div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:8px;width:100%;" onclick="applyDefaultStarRank()">Apply to All Dragons</button>
     </div>
 
     <div id="dragonList" class="dragon-list"></div>
@@ -437,6 +456,20 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
         Review every detected value below before importing — nothing is added or changed until you click Confirm Import.
         Fields outlined in amber are low-confidence or missing; correct them directly in the table.
       </p>
+      <div class="ssi-override-block">
+        <label class="ssi-override-check">
+          <input type="checkbox" id="ssiOverrideCheck" onchange="toggleSsiOverride(this.checked)">
+          Override detected star ranks
+        </label>
+        <div class="segmented ssi-override-segmented" id="ssiOverrideSegmented" style="display:none;">
+          <div class="seg-btn" onclick="selectSsiOverrideStar(5, this)">5★</div>
+          <div class="seg-btn" onclick="selectSsiOverrideStar(6, this)">6★</div>
+          <div class="seg-btn" onclick="selectSsiOverrideStar(7, this)">7★</div>
+          <div class="seg-btn selected" onclick="selectSsiOverrideStar(8, this)">8★</div>
+          <div class="seg-btn" onclick="selectSsiOverrideStar(9, this)">9★</div>
+          <div class="seg-btn" onclick="selectSsiOverrideStar(10, this)">10★</div>
+        </div>
+      </div>
       <div id="ssiReviewTable" class="ssi-review-table"></div>
       <div id="ssiImportError" class="ssi-error" style="display:none;"></div>
       <div class="modal-actions">
@@ -867,6 +900,47 @@ async function applyDefaultLevel(){
   document.getElementById('resultsArea').innerHTML = ''; // clear stale formations computed under old levels
 }
 
+// ---- Default All Dragon Star Ranks ----
+let selectedDefaultStarRank = 8;
+function selectDefaultStarRank(value, el){
+  selectedDefaultStarRank = value;
+  document.querySelectorAll('#defaultStarSegmented .seg-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function applyDefaultStarRank(){
+  const count = dragons.length;
+  if(count===0){ alert('No dragons available. Add or import dragons first.'); return; }
+
+  const value = selectedDefaultStarRank;
+  if(!DragonImportCore.isValidStarRank(value)){
+    alert(`"${value}" isn't a supported star rank. Choose one of: ${DragonImportCore.VALID_STAR_RANKS.join(', ')}.`);
+    return;
+  }
+
+  const ok = confirm(`Set all ${count} dragons to ${value}★?\n\nThis will replace the current star rank for every dragon. All other dragon information will remain unchanged.`);
+  if(!ok) return; // Cancel leaves all data unchanged.
+
+  try{
+    // No selection/filter feature exists yet in this roster view, so this
+    // always targets the full roster (targetIds omitted = "apply to all"),
+    // per the spec's default when filtering/selection isn't available.
+    const { roster: nextRoster, count: updated, failures } = DragonImportCore.applyBulkStarRank(dragons, value, null);
+    dragons = nextRoster;
+    await persistDragons();
+    renderRoster();
+    document.getElementById('resultsArea').innerHTML = '';
+
+    if(failures.length){
+      alert(`${updated} dragons were updated to ${value}★. ${failures.length} record(s) could not be updated and were left unchanged.`);
+    } else {
+      alert(`${updated} dragons were updated to ${value}★.`);
+    }
+  }catch(e){
+    alert('Could not update star ranks: ' + e.message);
+  }
+}
+
 const TROOP_TYPES = ['spearmen','cavalry','archers','shieldbearers','siege'];
 
 function inferFlankRole(raw){
@@ -962,15 +1036,31 @@ const SSI_ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 let ssiFiles = [];        // [{id, file, name, dataUrl, mimeType, size, status, errorMsg}]
 let ssiDetections = [];   // flattened rows shown in the review table
 let ssiExportResults = null; // set after confirm, used by the JSON download
+let ssiOverride = { enabled: false, value: 8 }; // "Override detected star ranks" for the whole batch
 
 function ssiEdgeFunctionAvailable(){
   return !!(supabaseClient && cloudConfigured());
+}
+
+function toggleSsiOverride(checked){
+  ssiOverride.enabled = checked;
+  document.getElementById('ssiOverrideSegmented').style.display = checked ? '' : 'none';
+  renderSsiReviewTable();
+}
+function selectSsiOverrideStar(value, el){
+  ssiOverride.value = value;
+  document.querySelectorAll('#ssiOverrideSegmented .seg-btn').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  renderSsiReviewTable();
 }
 
 function openScreenshotImport(){
   ssiFiles = [];
   ssiDetections = [];
   ssiExportResults = null;
+  ssiOverride = { enabled: false, value: 8 };
+  document.getElementById('ssiOverrideCheck').checked = false;
+  document.getElementById('ssiOverrideSegmented').style.display = 'none';
   document.getElementById('ssiUploadPhase').style.display = '';
   document.getElementById('ssiReviewPhase').style.display = 'none';
   document.getElementById('ssiSummaryPhase').style.display = 'none';
@@ -1125,6 +1215,7 @@ async function analyzeScreenshots(){
     const match = DragonImportCore.matchDragon(d, dragons);
     return {
       ...d,
+      aiDetectedStarRank: d.starRank, // preserved even if the user edits d.starRank below
       matchType: match.matchType,
       matchedDragonId: match.dragon ? match.dragon.id : null,
       isDuplicateInBatch: dupIndices.has(i),
@@ -1163,7 +1254,7 @@ function renderSsiReviewTable(){
         ${d.thumbnail ? `<img src="${d.thumbnail}" alt="Screenshot of ${escapeHtml(d.name||'unidentified dragon')}">` : `<div style="width:64px;height:64px;background:var(--panel);border-radius:4px;"></div>`}
         <div class="ssi-row-fields">
           <div class="field"><label>Name</label><input type="text" value="${escapeHtml(d.name||'')}" class="${nameBad?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'name',this.value)"></div>
-          <div class="field"><label>Star</label><input type="number" min="1" max="10" value="${d.starRank??''}" class="${starBad?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'starRank',this.value)"></div>
+          <div class="field"><label>Star${ssiOverride.enabled?' <span class="ssi-star-override-badge">OVERRIDDEN</span>':''}</label><input type="number" min="1" max="10" value="${ssiOverride.enabled ? ssiOverride.value : (d.starRank??'')}" ${ssiOverride.enabled?'disabled':''} class="${starBad && !ssiOverride.enabled?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'starRank',this.value)">${ssiOverride.enabled && d.aiDetectedStarRank!=null ? `<span class="ssi-star-detected">detected: ${d.aiDetectedStarRank}★</span>` : ''}</div>
           <div class="field"><label>Level</label><input type="number" min="1" max="200" value="${d.level??''}" class="${levelBad?'ssi-flag-bad':''}" oninput="updateSsiField(${i},'level',this.value)"></div>
           <div class="field"><label>Matching dragon</label>
             <select onchange="updateSsiField(${i},'matchedDragonId',this.value)">${ssiRosterOptions(d.matchedDragonId)}</select>
@@ -1199,14 +1290,24 @@ async function confirmScreenshotImport(){
   const errEl = document.getElementById('ssiImportError');
   errEl.style.display = 'none';
 
-  const rows = ssiDetections.map(d => ({
-    action: d.action,
-    name: d.name,
-    starRank: d.starRank,
-    level: d.level,
-    maxLevel: d.maxLevel,
-    matchedDragonId: d.matchedDragonId,
-  }));
+  const rows = ssiDetections.map(d => {
+    const finalStar = ssiOverride.enabled ? ssiOverride.value : d.starRank;
+    let starRankSource;
+    if(ssiOverride.enabled) starRankSource = 'import-override';
+    else if(d.aiDetectedStarRank != null && finalStar === d.aiDetectedStarRank) starRankSource = 'screenshot';
+    else starRankSource = 'manual';
+    return {
+      action: d.action,
+      name: d.name,
+      starRank: finalStar,
+      level: d.level,
+      maxLevel: d.maxLevel,
+      matchedDragonId: d.matchedDragonId,
+      _detectedStarRank: d.aiDetectedStarRank,
+      _starRankOverridden: ssiOverride.enabled,
+      _starRankSource: starRankSource,
+    };
+  });
 
   const { roster: nextRoster, results, failures } = DragonImportCore.applyImportBatch(rows, dragons, {
     makeId: () => 'ssi_'+Date.now()+Math.floor(Math.random()*100000)
@@ -1216,14 +1317,22 @@ async function confirmScreenshotImport(){
   await persistDragons();
   renderRoster();
 
-  ssiExportResults = results.map((r, i) => ({
-    name: r.name,
-    dragonId: r.dragonId,
-    starRank: rows[i] ? rows[i].starRank : null,
-    level: rows[i] ? rows[i].level : null,
-    maxLevel: rows[i] ? rows[i].maxLevel : null,
-    action: r.action,
-  }));
+  // Correlate by rowIndex (not array position) — a partial failure would
+  // otherwise misalign results with the wrong original row.
+  ssiExportResults = results.map((r) => {
+    const row = rows[r.rowIndex];
+    return {
+      name: r.name,
+      dragonId: r.dragonId,
+      starRank: row ? row.starRank : null,
+      level: row ? row.level : null,
+      maxLevel: row ? row.maxLevel : null,
+      action: r.action,
+      starRankSource: row ? row._starRankSource : undefined,
+      detectedStarRank: row ? row._detectedStarRank : undefined,
+      starRankOverridden: row ? row._starRankOverridden : undefined,
+    };
+  });
 
   const counts = { added:0, updated:0, merged:0, skipped:0 };
   results.forEach(r=>{ if(counts[r.action]!=null) counts[r.action]++; });
