@@ -1601,11 +1601,23 @@ function pickArmies(pool, usedIds, goal, count, enemyTroop){
   if(count<=0) return chosen;
   let available = pool.filter(d=>!usedIds.has(d.id));
 
-  // Siege formations shouldn't include dragons that are actively penalized
-  // against the Siege troop type — they'd just be dead weight (or worse, a
-  // net negative) in a Siege army.
   if(goal==='siege'){
+    // Siege formations shouldn't include dragons that are actively penalized
+    // against the Siege troop type — they'd just be dead weight (or worse, a
+    // net negative) in a Siege army.
     available = available.filter(d=>getAffinityMode(d,'siege')!=='penalty');
+
+    // Prefer dragons with POSITIVE Siege affinity over merely-neutral ones —
+    // otherwise a high-power neutral dragon can crowd a lower-power
+    // siege-affinity dragon out of the power-based capacity cut below, and a
+    // "Siege" army ends up with no siege-affinity dragons in it at all.
+    // Only fall back to neutral-affinity dragons if there genuinely aren't
+    // enough siege-affinity ones to fill every requested army.
+    const capacityNeeded = count*3;
+    const siegeAffinityOnly = available.filter(d=>getAffinityMode(d,'siege')==='boost');
+    if(siegeAffinityOnly.length>=capacityNeeded){
+      available = siegeAffinityOnly;
+    }
   }
 
   if(available.length<3) return chosen;
