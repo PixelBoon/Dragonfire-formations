@@ -183,6 +183,8 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 }
 .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .slot{background:var(--panel-raised);border:1px solid var(--line);border-radius:4px;padding:8px 10px;}
+.slot select{width:100%;margin-top:2px;padding:6px 6px;font-size:11.5px;}
+.formation-card-full.formation-editing{border-color:var(--ice);background:linear-gradient(135deg, rgba(79,168,216,0.06), var(--panel));}
 .slot-pos{font-size:9px;color:var(--ice);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;}
 .slot-name{font-size:13px;font-weight:600;}
 .slot-stats{font-family:'JetBrains Mono';font-size:11px;color:var(--muted);margin-top:3px;}
@@ -556,6 +558,9 @@ let dragons = [];
 let savedFormations = [];
 let lockedFormations = []; // [{id, goal, dragonIds:[leftId,centerId,rightId]}] — pinned formations excluded from regeneration
 let lastResults = [];
+let lastPowerArmies = [], lastSiegeArmies = [], lastDpsArmies = []; // preserved so edit mode can re-render without regenerating
+let editIndex = null; // which lastResults index (if any) is currently being edited
+let editSelection = { left:null, center:null, right:null };
 
 const STORAGE_KEY_DRAGONS = 'emberline_dragons';
 const STORAGE_KEY_SAVED = 'emberline_saved_formations';
@@ -1685,7 +1690,13 @@ function optimizeAll(){
   const dpsArmies = [...lockedDps, ...freshDps];
 
   lastResults = [...powerArmies, ...siegeArmies, ...dpsArmies];
+  lastPowerArmies = powerArmies; lastSiegeArmies = siegeArmies; lastDpsArmies = dpsArmies;
+  editIndex = null; // a fresh generation invalidates any formation mid-edit
   renderResults(powerArmies, siegeArmies, dpsArmies);
+}
+
+function rerenderResults(){
+  renderResults(lastPowerArmies, lastSiegeArmies, lastDpsArmies);
 }
 
 function powerCell(d){
@@ -1693,14 +1704,89 @@ function powerCell(d){
   return `${Math.round(dragonPower(d)).toLocaleString()}${est?'*':''}`;
 }
 
+function dragonOptionsHtml(selectedId){
+  return dragons.map(d=>
+    `<option value="${d.id}" ${d.id===selectedId?'selected':''}>${escapeHtml(d.name)} (Lv.${d.reign}, ★${d.star})</option>`
+  ).join('');
+}
+
+function toggleEditFormation(i){
+  const c = lastResults[i];
+  if(!c) return;
+  if(editIndex===i){
+    editIndex = null; // toggle off / cancel
+  } else {
+    editIndex = i;
+    editSelection = { left:c.left.id, center:c.center.id, right:c.right.id };
+  }
+  rerenderResults();
+}
+function cancelEditFormation(){
+  editIndex = null;
+  rerenderResults();
+}
+function updateEditSelection(slot, value){
+  editSelection[slot] = value;
+  rerenderResults(); // live-updates the preview score/synergy for the card being edited
+}
+
 function formationCard(c, rank, globalIndex, badgeClass){
+  const isEditingThis = (globalIndex === editIndex);
+  const isLocked = !!c.lockId;
+
+  if(isEditingThis){
+    const ids = [editSelection.left, editSelection.center, editSelection.right];
+    const distinct = new Set(ids.filter(Boolean)).size;
+    const allChosen = ids.every(Boolean);
+    const validSelection = allChosen && distinct===3;
+
+    let preview = null, previewError = '';
+    if(validSelection){
+      const left = dragons.find(d=>d.id===editSelection.left);
+      const center = dragons.find(d=>d.id===editSelection.center);
+      const right = dragons.find(d=>d.id===editSelection.right);
+      if(left && center && right){
+        const enemyTroop = document.getElementById('enemyTroop').value;
+        preview = evaluateFixedSlots(left, center, right, c.goal, enemyTroop);
+      } else {
+        previewError = 'One of the selected dragons could not be found — pick again.';
+      }
+    } else if(!allChosen){
+      previewError = 'Pick a dragon for all three slots.';
+    } else {
+      previewError = 'Each slot needs a different dragon — no repeats within one formation.';
+    }
+
+    const previewScoreHtml = preview
+      ? `<div class="val">${Math.round(preview.synergy.score).toLocaleString()}</div><div class="fc-sublabel">with synergy</div><div class="fc-raw">${Math.round(preview.synergy.baseSum).toLocaleString()} raw power</div>`
+      : `<div class="ssi-error" style="margin:0;">${escapeHtml(previewError)}</div>`;
+
+    return `
+      <div class="formation-card-full formation-editing">
+        <div class="fc-head">
+          <div class="rank-badge ${badgeClass}">${isLocked?'🔒':rank}</div>
+          <div class="fc-troop">${preview ? `${TROOP_ICONS[preview.synergy.troop]||''} ${TROOP_LABELS[preview.synergy.troop]||preview.synergy.troop} <span class="fc-synergy" style="color:${preview.synergy.totalPct>=0?'var(--gold)':'var(--danger)'};">${preview.synergy.totalPct>=0?'+':''}${preview.synergy.totalPct.toFixed(1)}% synergy</span>` : ''} <span class="locked-tag" style="color:var(--ice);border-color:var(--ice);">EDITING</span></div>
+          <div class="fc-total">${previewScoreHtml}</div>
+        </div>
+        <div class="slots">
+          <div class="slot"><div class="slot-pos">Left Flank</div><select onchange="updateEditSelection('left',this.value)">${dragonOptionsHtml(editSelection.left)}</select></div>
+          <div class="slot"><div class="slot-pos">Vanguard</div><select onchange="updateEditSelection('center',this.value)">${dragonOptionsHtml(editSelection.center)}</select></div>
+          <div class="slot"><div class="slot-pos">Right Flank</div><select onchange="updateEditSelection('right',this.value)">${dragonOptionsHtml(editSelection.right)}</select></div>
+        </div>
+        <div class="modal-actions" style="margin-top:14px;">
+          <button class="btn btn-ghost" onclick="cancelEditFormation()">Cancel</button>
+          <button class="btn btn-primary" ${preview?'':'disabled'} onclick="confirmEditSave(${globalIndex})">☆ Confirm &amp; Save</button>
+          <button class="btn btn-primary" ${preview?'':'disabled'} onclick="confirmEditLock(${globalIndex})">🔒 Confirm &amp; Lock</button>
+        </div>
+      </div>`;
+  }
+
   const syn = c.synergy;
   const synColor = syn.totalPct>=0 ? 'var(--gold)' : 'var(--danger)';
   const linesHtml = syn.lines.map(l=>{
     const pos = l.pct>=0;
     return `<div class="why-line ${pos?'':'why-neg'}">${pos?'+':''}${l.pct.toFixed(1)}% ${escapeHtml(l.label)}</div>`;
   }).join('');
-  const isLocked = !!c.lockId;
   const lockBtn = isLocked
     ? `<button class="btn btn-sm btn-ghost lock-btn locked" onclick="toggleLock(${globalIndex})">🔒 Unlock</button>`
     : `<button class="btn btn-sm btn-ghost lock-btn" onclick="toggleLock(${globalIndex})">🔓 Lock</button>`;
@@ -1714,6 +1800,7 @@ function formationCard(c, rank, globalIndex, badgeClass){
           <div class="fc-sublabel">with synergy</div>
           <div class="fc-raw">${Math.round(syn.baseSum).toLocaleString()} raw power</div>
           <div class="fc-btn-row">
+            <button class="btn btn-sm btn-ghost" onclick="toggleEditFormation(${globalIndex})">✏️ Edit</button>
             ${lockBtn}
             <button class="btn btn-sm btn-ghost" onclick="saveFormation(${globalIndex})">☆ Save</button>
           </div>
@@ -1799,6 +1886,60 @@ async function toggleLock(i){
   }
   await persistLocked();
   optimizeAll(); // regenerate immediately so the lock/unlock takes effect right away
+}
+
+// Resolves the currently-edited formation's 3 dropdown selections into real
+// dragon objects + a freshly-scored fixed-slot evaluation. Returns null if the
+// selection is invalid (missing or duplicate picks).
+function resolveEditedFormation(c){
+  const ids = [editSelection.left, editSelection.center, editSelection.right];
+  if(!ids.every(Boolean) || new Set(ids).size!==3) return null;
+  const left = dragons.find(d=>d.id===editSelection.left);
+  const center = dragons.find(d=>d.id===editSelection.center);
+  const right = dragons.find(d=>d.id===editSelection.right);
+  if(!left||!center||!right) return null;
+  const enemyTroop = document.getElementById('enemyTroop').value;
+  const best = evaluateFixedSlots(left, center, right, c.goal, enemyTroop);
+  return { ...best, goal: c.goal };
+}
+
+async function confirmEditSave(i){
+  const c = lastResults[i];
+  if(!c) return;
+  const edited = resolveEditedFormation(c);
+  if(!edited){ alert('Pick three different dragons before saving.'); return; }
+
+  savedFormations.push({
+    id:'sf_'+Date.now(),
+    left:edited.left.name, center:edited.center.name, right:edited.right.name,
+    score: Math.round(edited.synergy.score),
+    goal: edited.goal
+  });
+  await persistSaved();
+  renderSaved();
+  editIndex = null;
+  rerenderResults();
+}
+
+async function confirmEditLock(i){
+  const c = lastResults[i];
+  if(!c) return;
+  const edited = resolveEditedFormation(c);
+  if(!edited){ alert('Pick three different dragons before locking.'); return; }
+
+  // If this card was already locked, replace its old lock entry rather than
+  // stacking a second one for the same slot.
+  if(c.lockId){
+    lockedFormations = lockedFormations.filter(lf=>lf.id!==c.lockId);
+  }
+  lockedFormations.push({
+    id: 'lock_'+Date.now()+Math.floor(Math.random()*10000),
+    goal: edited.goal,
+    dragonIds: [edited.left.id, edited.center.id, edited.right.id]
+  });
+  await persistLocked();
+  editIndex = null;
+  optimizeAll(); // regenerate so the new lock composition takes effect immediately
 }
 
 function renderSaved(){
