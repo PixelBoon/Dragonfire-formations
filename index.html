@@ -910,35 +910,26 @@ function selectDefaultStarRank(value, el){
 
 async function applyDefaultStarRank(){
   const count = dragons.length;
-  if(count===0){ alert('No dragons available. Add or import dragons first.'); return; }
-
+  if(count===0){ alert('No dragons in your roster yet.'); return; }
   const value = selectedDefaultStarRank;
-  if(!DragonImportCore.isValidStarRank(value)){
-    alert(`"${value}" isn't a supported star rank. Choose one of: ${DragonImportCore.VALID_STAR_RANKS.join(', ')}.`);
+
+  const VALID_STAR_RANKS = [5,6,7,8,9,10];
+  if(!VALID_STAR_RANKS.includes(value)){
+    alert(`"${value}" isn't a supported star rank. Choose one of: ${VALID_STAR_RANKS.join(', ')}.`);
     return;
   }
 
   const ok = confirm(`Set all ${count} dragons to ${value}★?\n\nThis will replace the current star rank for every dragon. All other dragon information will remain unchanged.`);
   if(!ok) return; // Cancel leaves all data unchanged.
 
-  try{
-    // No selection/filter feature exists yet in this roster view, so this
-    // always targets the full roster (targetIds omitted = "apply to all"),
-    // per the spec's default when filtering/selection isn't available.
-    const { roster: nextRoster, count: updated, failures } = DragonImportCore.applyBulkStarRank(dragons, value, null);
-    dragons = nextRoster;
-    await persistDragons();
-    renderRoster();
-    document.getElementById('resultsArea').innerHTML = '';
+  // Only touch star (Star Rank) — level, power, affinities, tags, vanguard
+  // skills, name, id, and everything else is left exactly as-is.
+  dragons.forEach(d=>{ d.star = value; });
 
-    if(failures.length){
-      alert(`${updated} dragons were updated to ${value}★. ${failures.length} record(s) could not be updated and were left unchanged.`);
-    } else {
-      alert(`${updated} dragons were updated to ${value}★.`);
-    }
-  }catch(e){
-    alert('Could not update star ranks: ' + e.message);
-  }
+  await persistDragons();
+  renderRoster();          // refresh the dragon list immediately, no reload
+  document.getElementById('resultsArea').innerHTML = ''; // clear stale formations computed under old star ranks
+  alert(`${count} dragons were updated to ${value}★.`);
 }
 
 const TROOP_TYPES = ['spearmen','cavalry','archers','shieldbearers','siege'];
