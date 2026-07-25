@@ -121,15 +121,15 @@ h1,h2,h3,.display{font-family:'Cinzel',serif;letter-spacing:0.04em;}
   margin-left:2px;outline:none;
 }
 .info-tooltip{
-  display:none;position:absolute;z-index:60;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  display:none;position:absolute;z-index:60;top:calc(100% + 8px);left:0;
   width:260px;background:var(--panel-raised);border:1px solid var(--line);border-radius:6px;
   padding:10px 12px;font-size:11.5px;line-height:1.6;color:var(--parchment);
   text-transform:none;letter-spacing:0;font-weight:400;
   box-shadow:0 8px 24px rgba(0,0,0,0.5);
 }
 .info-tooltip::after{
-  content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);
-  border:6px solid transparent;border-top-color:var(--line);
+  content:"";position:absolute;bottom:100%;left:10px;
+  border:6px solid transparent;border-bottom-color:var(--line);
 }
 .info-icon:hover .info-tooltip, .info-icon:focus .info-tooltip{display:block;}
 select,input[type=text],input[type=number]{
