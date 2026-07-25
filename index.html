@@ -252,6 +252,16 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 
 .top-actions{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
 .hint{color:var(--muted);font-size:11.5px;}
+.priority-block{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;}
+.priority-block-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--parchment);margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;}
+.priority-groups{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.priority-group-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;}
+.priority-list{display:flex;flex-direction:column;gap:6px;}
+.priority-row{display:flex;align-items:center;gap:8px;}
+.priority-row label{font-size:11px;color:var(--muted);width:52px;flex:none;}
+.priority-row select{flex:1;padding:5px 6px;font-size:11.5px;}
+.priority-empty{color:var(--muted);font-size:11px;}
+@media (max-width:900px){.priority-groups{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -313,19 +323,19 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
     <div class="controls">
       <div class="field">
         <label># Max Power Armies</label>
-        <select id="numPower">
+        <select id="numPower" onchange="renderPriorityPickers('power')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===3?'selected':''}>${n}</option>`).join(''));</script>
         </select>
       </div>
       <div class="field">
         <label># Siege Armies</label>
-        <select id="numSiege">
+        <select id="numSiege" onchange="renderPriorityPickers('siege')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===2?'selected':''}>${n}</option>`).join(''));</script>
         </select>
       </div>
       <div class="field">
         <label># DPS Armies</label>
-        <select id="numDps">
+        <select id="numDps" onchange="renderPriorityPickers('dps')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===0?'selected':''}>${n}</option>`).join(''));</script>
         </select>
       </div>
@@ -345,7 +355,26 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
         <button class="btn btn-primary" onclick="optimizeAll()">⚔ Generate Armies</button>
       </div>
     </div>
-    <div class="hint" style="margin:-10px 0 18px;">Power armies are built first (best pick of your roster), then Siege armies are built from whoever's left — no dragon appears in more than one army.</div>
+    <div class="hint" style="margin:-10px 0 10px;">Power armies are built first (best pick of your roster), then Siege armies are built from whoever's left — no dragon appears in more than one army.</div>
+
+    <div class="priority-block">
+      <div class="priority-block-title">Army Troop Priorities <span class="hint" style="font-weight:400;">— force a specific army to use a specific troop type instead of auto-picking the best one. Leave "(Auto)" to optimize as usual.</span></div>
+      <div class="priority-groups">
+        <div class="priority-group">
+          <div class="priority-group-label">Max Power Armies</div>
+          <div id="powerPriorityList" class="priority-list"></div>
+        </div>
+        <div class="priority-group">
+          <div class="priority-group-label">Siege Armies</div>
+          <div id="siegePriorityList" class="priority-list"></div>
+        </div>
+        <div class="priority-group">
+          <div class="priority-group-label">DPS Armies</div>
+          <div id="dpsPriorityList" class="priority-list"></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:18px;"></div>
 
     <div id="resultsArea"></div>
 
@@ -561,6 +590,7 @@ let lastResults = [];
 let lastPowerArmies = [], lastSiegeArmies = [], lastDpsArmies = []; // preserved so edit mode can re-render without regenerating
 let editIndex = null; // which lastResults index (if any) is currently being edited
 let editSelection = { left:null, center:null, right:null };
+let priorities = { power:[], siege:[], dps:[] }; // per-army-slot forced troop type; 'auto' or unset = optimize as usual
 
 const STORAGE_KEY_DRAGONS = 'emberline_dragons';
 const STORAGE_KEY_SAVED = 'emberline_saved_formations';
@@ -717,6 +747,14 @@ async function persistLocked(){
 async function loadAll(){
   restoreGuestWorkspace();
   initCloud();
+  // Deferred: TROOP_TYPES/TROOP_LABELS are declared further down this same
+  // script and aren't initialized yet at this point in execution (const
+  // bindings aren't hoisted), so this runs on the next tick instead.
+  setTimeout(()=>{
+    renderPriorityPickers('power');
+    renderPriorityPickers('siege');
+    renderPriorityPickers('dps');
+  }, 0);
 }
 loadAll();
 
@@ -1596,9 +1634,12 @@ function localSearchImprove(chosen, goal, enemyTroop, maxIterations){
   return chosen;
 }
 
-function pickArmies(pool, usedIds, goal, count, enemyTroop){
+function pickArmies(pool, usedIds, goal, count, enemyTroop, priorities){
   const chosen=[];
   if(count<=0) return chosen;
+  priorities = priorities || [];
+  const anyForced = priorities.slice(0,count).some(p=>p && p!=='auto');
+
   let available = pool.filter(d=>!usedIds.has(d.id));
 
   if(goal==='siege'){
@@ -1612,26 +1653,61 @@ function pickArmies(pool, usedIds, goal, count, enemyTroop){
 
   if(available.length<3) return chosen;
 
-  // Matches the real optimizer.js: only the top (numArmies*3) dragons by power are ever
-  // considered for this batch — everything below that cutoff is benched before partitioning
-  // even starts.
-  const capacity = count*3;
-  if(available.length>capacity){
-    available = available.slice().sort((a,b)=>dragonPower(b)-dragonPower(a)).slice(0,capacity);
+  if(!anyForced){
+    // Matches the real optimizer.js: only the top (numArmies*3) dragons by power are ever
+    // considered for this batch — everything below that cutoff is benched before partitioning
+    // even starts.
+    const capacity = count*3;
+    if(available.length>capacity){
+      available = available.slice().sort((a,b)=>dragonPower(b)-dragonPower(a)).slice(0,capacity);
+    }
+
+    const combos = combinations3(available).map(trio => bestArrangement(trio, goal, enemyTroop))
+      .sort((a,b)=>b.synergy.score-a.synergy.score);
+    for(const c of combos){
+      if(chosen.length>=count) break;
+      const ids=[c.left.id,c.center.id,c.right.id];
+      if(ids.some(id=>usedIds.has(id))) continue;
+      ids.forEach(id=>usedIds.add(id));
+      chosen.push({...c, goal});
+    }
+
+    // Local-search pass to fix suboptimal partitions the greedy pick can land on.
+    localSearchImprove(chosen, goal, enemyTroop);
+    return chosen;
   }
 
-  const combos = combinations3(available).map(trio => bestArrangement(trio, goal, enemyTroop))
-    .sort((a,b)=>b.synergy.score-a.synergy.score);
-  for(const c of combos){
-    if(chosen.length>=count) break;
-    const ids=[c.left.id,c.center.id,c.right.id];
-    if(ids.some(id=>usedIds.has(id))) continue;
-    ids.forEach(id=>usedIds.add(id));
-    chosen.push({...c, goal});
-  }
+  // At least one army slot has a forced troop-type priority. Build armies one
+  // slot at a time, in order, so "Army 1" really is the first one generated
+  // and gets first pick of the roster for its forced troop type — this can't
+  // be done with the all-at-once batch approach above, since that ranks every
+  // possible combo under a single shared troop assumption.
+  for(let i=0;i<count;i++){
+    const remaining = available.filter(d=>!usedIds.has(d.id));
+    if(remaining.length<3) break;
 
-  // Local-search pass to fix suboptimal partitions the greedy pick can land on.
-  localSearchImprove(chosen, goal, enemyTroop);
+    const remainingSlots = count - i;
+    const slotCapacity = remainingSlots*3;
+    let slotPool = remaining;
+    if(slotPool.length>slotCapacity){
+      slotPool = slotPool.slice().sort((a,b)=>dragonPower(b)-dragonPower(a)).slice(0,slotCapacity);
+    }
+
+    const forcedTroop = priorities[i] && priorities[i]!=='auto' ? priorities[i] : enemyTroop;
+    const combos = combinations3(slotPool).map(trio => bestArrangement(trio, goal, forcedTroop))
+      .sort((a,b)=>b.synergy.score-a.synergy.score);
+
+    let picked = null;
+    for(const c of combos){
+      const ids=[c.left.id,c.center.id,c.right.id];
+      if(ids.some(id=>usedIds.has(id))) continue;
+      picked = c;
+      break;
+    }
+    if(!picked) break;
+    [picked.left.id, picked.center.id, picked.right.id].forEach(id=>usedIds.add(id));
+    chosen.push({...picked, goal});
+  }
   return chosen;
 }
 
@@ -1646,6 +1722,30 @@ function resolveLockedFormation(lock, enemyTroop){
   if(!l||!c||!r) return null;
   const best = evaluateFixedSlots(l,c,r,lock.goal,enemyTroop);
   return {...best, goal:lock.goal, lockId:lock.id};
+}
+
+function troopPriorityOptions(selected){
+  const opts = [['auto','(Auto)'], ...TROOP_TYPES.map(t=>[t, TROOP_LABELS[t]])];
+  return opts.map(([v,l])=>`<option value="${v}" ${v===(selected||'auto')?'selected':''}>${l}</option>`).join('');
+}
+
+function renderPriorityPickers(goal){
+  const countId = goal==='power' ? 'numPower' : goal==='siege' ? 'numSiege' : 'numDps';
+  const count = Number(document.getElementById(countId).value) || 0;
+  const container = document.getElementById(goal+'PriorityList');
+  const arr = priorities[goal];
+  // Resize the stored priority array to match the new count, preserving
+  // whatever was already picked for slots that still exist.
+  while(arr.length < count) arr.push('auto');
+  arr.length = count;
+
+  if(count===0){
+    container.innerHTML = `<div class="priority-empty">No armies of this type selected.</div>`;
+    return;
+  }
+  container.innerHTML = arr.map((val,i)=>
+    `<div class="priority-row"><label>Army ${i+1}</label><select onchange="priorities['${goal}'][${i}]=this.value">${troopPriorityOptions(val)}</select></div>`
+  ).join('');
 }
 
 function optimizeAll(){
@@ -1683,9 +1783,9 @@ function optimizeAll(){
 
   // Generate only however many MORE are needed to reach the requested count for
   // each goal, on top of what's already locked. Power gets first pick, as requested.
-  const freshPower = pickArmies(dragons, usedIds, 'power', Math.max(0, numPower-lockedPower.length), enemyTroop);
-  const freshSiege = pickArmies(dragons, usedIds, 'siege', Math.max(0, numSiege-lockedSiege.length), enemyTroop);
-  const freshDps = pickArmies(dragons, usedIds, 'dps', Math.max(0, numDps-lockedDps.length), enemyTroop);
+  const freshPower = pickArmies(dragons, usedIds, 'power', Math.max(0, numPower-lockedPower.length), enemyTroop, priorities.power.slice(lockedPower.length));
+  const freshSiege = pickArmies(dragons, usedIds, 'siege', Math.max(0, numSiege-lockedSiege.length), enemyTroop, priorities.siege.slice(lockedSiege.length));
+  const freshDps = pickArmies(dragons, usedIds, 'dps', Math.max(0, numDps-lockedDps.length), enemyTroop, priorities.dps.slice(lockedDps.length));
 
   const powerArmies = [...lockedPower, ...freshPower];
   const siegeArmies = [...lockedSiege, ...freshSiege];
