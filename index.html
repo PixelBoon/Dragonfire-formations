@@ -114,6 +114,24 @@ h1,h2,h3,.display{font-family:'Cinzel',serif;letter-spacing:0.04em;}
 }
 .field{display:flex;flex-direction:column;gap:5px;}
 .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+
+.info-icon{
+  position:relative;display:inline-block;cursor:help;color:var(--ice);
+  font-size:11px;letter-spacing:0;text-transform:none;vertical-align:middle;
+  margin-left:2px;outline:none;
+}
+.info-tooltip{
+  display:none;position:absolute;z-index:60;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  width:260px;background:var(--panel-raised);border:1px solid var(--line);border-radius:6px;
+  padding:10px 12px;font-size:11.5px;line-height:1.6;color:var(--parchment);
+  text-transform:none;letter-spacing:0;font-weight:400;
+  box-shadow:0 8px 24px rgba(0,0,0,0.5);
+}
+.info-tooltip::after{
+  content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:var(--line);
+}
+.info-icon:hover .info-tooltip, .info-icon:focus .info-tooltip{display:block;}
 select,input[type=text],input[type=number]{
   background:var(--obsidian);border:1px solid var(--line);color:var(--parchment);
   padding:7px 9px;border-radius:3px;font-family:'Inter';font-size:13px;
@@ -322,19 +340,19 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 
     <div class="controls">
       <div class="field">
-        <label># Max Power Armies</label>
+        <label># Max Power Armies <span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">Maximizes total power plus every synergy bonus (troop affinity, taunt, flank buffs, self-damage reduction, "balanced core," etc.) with no extra weighting toward any particular role. In practice this tends to reward a well-rounded mix — a tank, a support piece, and an attacker — since that combination is what actually earns the most synergy points.</span></span></label>
         <select id="numPower" onchange="renderPriorityPickers('power')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===3?'selected':''}>${n}</option>`).join(''));</script>
         </select>
       </div>
       <div class="field">
-        <label># Siege Armies</label>
+        <label># Siege Armies <span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">Same base scoring as Power Armies, plus bonuses for Siege-troop affinity and for each damage-dealer in the trio. Locked to the Siege troop type, and built only from dragons left over after Power Armies have already been assigned — a high-power dragon with no Siege bonus can still win a slot if it genuinely scores higher overall.</span></span></label>
         <select id="numSiege" onchange="renderPriorityPickers('siege')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===2?'selected':''}>${n}</option>`).join(''));</script>
         </select>
       </div>
       <div class="field">
-        <label># DPS Armies</label>
+        <label># DPS Armies <span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">Same base scoring as Power Armies, plus extra bonuses for stacking damage-dealer archetypes and offense-amplifying tags (Burn, Double Strike, Scaling, Advantage, etc.). This pushes toward "glass cannon" compositions — more attackers, fewer tanks or healers — even when that trades away some of the synergy a Power Army would keep.</span></span></label>
         <select id="numDps" onchange="renderPriorityPickers('dps')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===0?'selected':''}>${n}</option>`).join(''));</script>
         </select>
