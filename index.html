@@ -346,7 +346,7 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
         </select>
       </div>
       <div class="field">
-        <label># Siege Armies <span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">Same base scoring as Power Armies, plus bonuses for Siege-troop affinity and for each damage-dealer in the trio. Locked to the Siege troop type, and built only from dragons left over after Power Armies have already been assigned — a high-power dragon with no Siege bonus can still win a slot if it genuinely scores higher overall.</span></span></label>
+        <label># Siege Armies <span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">Same base scoring as Power Armies, plus a bonus for each dragon with positive Siege affinity and each damage-dealer in the trio. Siege affinity is a bonus, not a requirement — a high-power dragon with no Siege bonus at all can still be chosen if its total score beats the alternatives; only dragons with NEGATIVE Siege affinity are excluded outright. Locked to the Siege troop type, and built only from dragons left over after Power Armies have already been assigned.</span></span></label>
         <select id="numSiege" onchange="renderPriorityPickers('siege')">
           <script>document.write([0,1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n}" ${n===2?'selected':''}>${n}</option>`).join(''));</script>
         </select>
