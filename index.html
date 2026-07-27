@@ -369,6 +369,10 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
         </select>
       </div>
       <div class="field">
+        <label>Siege Precision Lvl <span class="info-icon" tabindex="0">ⓘ<span class="info-tooltip">Your Stronghold's Siege Precision level (0 if not upgraded). Adds +3% per level directly into the score for Siege-goal armies only, shown as its own line in "Why this works" — it doesn't change which dragons get picked, since it applies equally to every Siege formation, but makes the total reflect your real damage output.</span></span></label>
+        <input type="number" id="siegePrecisionInput" min="0" max="30" step="1" value="0" style="width:90px;" oninput="siegePrecisionLevel = Math.max(0, Number(this.value)||0);">
+      </div>
+      <div class="field">
         <label style="visibility:hidden">x</label>
         <button class="btn btn-primary" onclick="optimizeAll()">⚔ Generate Armies</button>
       </div>
@@ -609,6 +613,7 @@ let lastPowerArmies = [], lastSiegeArmies = [], lastDpsArmies = []; // preserved
 let editIndex = null; // which lastResults index (if any) is currently being edited
 let editSelection = { left:null, center:null, right:null };
 let priorities = { power:[], siege:[], dps:[] }; // per-army-slot forced troop type; 'auto' or unset = optimize as usual
+let siegePrecisionLevel = 0; // Stronghold "Siege Precision" tech/building level — +3% Siege score per level, display-only
 
 const STORAGE_KEY_DRAGONS = 'emberline_dragons';
 const STORAGE_KEY_SAVED = 'emberline_saved_formations';
@@ -1563,6 +1568,9 @@ function buildSynergy(left, center, right, goal, troop){
     const dealers = trio.filter(d=>DEALER_ARCHETYPES.includes(d.archetype)).length;
     if(dealers) add(`Siege output: ${dealers} damage dealer(s) driving siege damage`, 0.04*dealers);
     trio.forEach(d=>{ if(getAffinityMode(d,'siege')==='penalty') warnings.push(`${d.name} has NEGATIVE Siege affinity — weak choice for a siege formation.`); });
+    // Account-wide Stronghold bonus, not a dragon/formation trait — applies equally
+    // to every Siege formation, so it never changes which dragons get picked.
+    if(siegePrecisionLevel>0) add(`Stronghold: Siege Precision (Lvl ${siegePrecisionLevel})`, 0.03*siegePrecisionLevel);
   } else if(goal==='dps'){
     const dealers = trio.filter(d=>DEALER_ARCHETYPES.includes(d.archetype)).length;
     if(dealers) add(`DPS focus: ${dealers} damage dealer(s)`, 0.05*dealers);
