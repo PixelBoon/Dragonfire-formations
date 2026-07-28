@@ -264,6 +264,13 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
 .subhead{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin:18px 0 8px;}
 .skill-row{display:flex;align-items:center;gap:10px;font-size:12.5px;margin-bottom:8px;}
+.habit-level-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:4px;}
+.habit-level-cell{background:var(--panel-raised);border:1px solid var(--line);border-radius:5px;padding:8px 9px;text-align:center;}
+.habit-level-cell .hl-title{font-size:10.5px;color:var(--parchment);font-weight:600;margin-bottom:2px;}
+.habit-level-cell .hl-unlock{font-size:9.5px;color:var(--muted);margin-bottom:6px;}
+.habit-level-cell select{width:100%;padding:5px 4px;font-size:12px;}
+.habit-level-cell.locked{opacity:0.45;}
+.habit-level-cell.locked .hl-unlock{color:var(--danger);}
 .skill-row label{flex:1;color:var(--parchment);}
 .skill-row input[type=range]{width:120px;accent-color:var(--ember);}
 .skill-row .rv{width:36px;text-align:right;font-family:'JetBrains Mono';color:var(--gold);font-size:12px;}
@@ -574,7 +581,7 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
       </div>
       <div class="field"><label>Power (in-game number)</label><input type="number" id="f_power" placeholder="leave blank to auto-estimate"></div>
       <div class="field"><label>Troop Capacity (optional)</label><input type="number" id="f_capacity" placeholder="optional"></div>
-      <div class="field"><label>Star Rank (1-6)</label><input type="number" id="f_star" min="1" max="6" value="1"></div>
+      <div class="field"><label>Star Rank (1-10)</label><input type="number" id="f_star" min="1" max="10" value="1" oninput="renderHabitLevelInputs()"></div>
       <div class="field"><label>Reign Level</label><input type="number" id="f_reign" value="20"></div>
     </div>
 
@@ -586,6 +593,9 @@ h2.section-title::after{content:"";flex:1;height:1px;background:var(--line);}
       <div class="field"><label>Shieldbearers</label><select id="f_aff_shieldbearers"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
       <div class="field"><label>Siege</label><select id="f_aff_siege"><option value="0">·</option><option value="+">+</option><option value="-">−</option></select></div>
     </div>
+
+    <div class="subhead">Habit Levels <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">— Habit N unlocks at ★(2N); each unlocked habit starts at Level 1</span></div>
+    <div id="habitLevelsSection" class="habit-level-grid"></div>
 
     <div class="subhead">Vanguard / Position Skills (0–1, e.g. 0.10 = +10%)</div>
     <div class="skill-row"><label>Self damage reduction</label><input type="range" id="s_self" min="0" max="1" step="0.01" value="0" oninput="syncRV('s_self')"><span class="rv" id="s_self_rv">0.00</span></div>
@@ -614,6 +624,7 @@ let editIndex = null; // which lastResults index (if any) is currently being edi
 let editSelection = { left:null, center:null, right:null };
 let priorities = { power:[], siege:[], dps:[] }; // per-army-slot forced troop type; 'auto' or unset = optimize as usual
 let siegePrecisionLevel = 0; // Stronghold "Siege Precision" tech/building level — +3% Siege score per level, display-only
+let currentHabitLevels = [1,1,1,1,1]; // the dragon-modal's working copy of the 5 habit levels being edited
 
 const STORAGE_KEY_DRAGONS = 'emberline_dragons';
 const STORAGE_KEY_SAVED = 'emberline_saved_formations';
@@ -803,11 +814,48 @@ function renderRoster(){
         <span class="rarity-tag rarity-${d.rarity}">${d.rarity}</span>
         &nbsp; ${escapeHtml(d.breed||'—')} · ${d.damage} · ★${d.star} · Lv.${d.reign}
       </div>
+      <div class="dc-meta" style="margin-top:2px;">${habitSummary(d)}</div>
     </div>
   `).join('');
 }
 
+// Compact "Habits: 3/5 (Lv 1,1,2)" summary for the roster card — full editing
+// still happens in the Edit Dragon modal, this is just an at-a-glance readout.
+function habitSummary(d){
+  const unlockedCount = HABIT_UNLOCK_STARS.filter(s => d.star >= s).length;
+  if(unlockedCount===0) return `<span style="color:var(--muted);">No habits unlocked yet (★2 unlocks Habit 1)</span>`;
+  const levels = (d.habitLevels||[1,1,1,1,1]).slice(0, unlockedCount).join(',');
+  return `<span style="color:var(--muted);">Habits: ${unlockedCount}/5 unlocked (Lv ${levels})</span>`;
+}
+
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Renders the 5 Habit-Level cells, gating each one on the CURRENT value of the
+// Star Rank field (live — called on every star-rank edit). A habit that isn't
+// unlocked yet shows as locked and can't be edited; currentHabitLevels still
+// holds a value for it underneath (default 1), it's just not exposed until the
+// dragon reaches the star rank that unlocks it.
+function renderHabitLevelInputs(){
+  const star = Number(document.getElementById('f_star').value) || 1;
+  const container = document.getElementById('habitLevelsSection');
+  container.innerHTML = HABIT_UNLOCK_STARS.map((unlockStar, i)=>{
+    const unlocked = star >= unlockStar;
+    const level = currentHabitLevels[i] || 1;
+    if(!unlocked){
+      return `<div class="habit-level-cell locked">
+        <div class="hl-title">Habit ${i+1}</div>
+        <div class="hl-unlock">Locked until ★${unlockStar}</div>
+        <select disabled><option>—</option></select>
+      </div>`;
+    }
+    const options = [1,2,3,4,5].map(lv=>`<option value="${lv}" ${lv===level?'selected':''}>Level ${lv}</option>`).join('');
+    return `<div class="habit-level-cell">
+      <div class="hl-title">Habit ${i+1}</div>
+      <div class="hl-unlock">Unlocked at ★${unlockStar}</div>
+      <select onchange="currentHabitLevels[${i}]=Number(this.value)">${options}</select>
+    </div>`;
+  }).join('');
+}
 
 function openDragonModal(id){
   document.getElementById('dragonOverlay').style.display='flex';
@@ -839,6 +887,8 @@ function openDragonModal(id){
   document.getElementById('s_lft').value = d?.skills?.leftFlankTacticalBuff ?? 0;
   document.getElementById('s_lff').value = d?.skills?.leftFlankFireBuff ?? 0;
   ['s_self','s_rfp','s_lft','s_lff'].forEach(syncRV);
+  currentHabitLevels = (d?.habitLevels && d.habitLevels.length===5) ? d.habitLevels.slice() : [1,1,1,1,1];
+  renderHabitLevelInputs();
 }
 function closeDragonModal(){ document.getElementById('dragonOverlay').style.display='none'; }
 
@@ -879,6 +929,8 @@ function applyPreset(){
   document.getElementById('s_lft').value = vg.leftTactical || 0;
   document.getElementById('s_lff').value = vg.leftFire || 0;
   ['s_self','s_rfp','s_lft','s_lff'].forEach(syncRV);
+  currentHabitLevels = [1,1,1,1,1];
+  renderHabitLevelInputs();
 }
 
 async function saveDragon(){
@@ -891,6 +943,11 @@ async function saveDragon(){
     const v = document.getElementById('f_aff_'+t).value;
     affinities[t] = v==='+' ? 'boost' : v==='-' ? 'penalty' : 'neutral';
   });
+  const starForSave = Number(document.getElementById('f_star').value)||1;
+  // Only habits actually unlocked at this star rank keep their chosen level;
+  // anything not yet unlocked resets to the level-1 default rather than
+  // silently persisting a value the dragon hasn't earned yet.
+  const habitLevels = HABIT_UNLOCK_STARS.map((unlockStar, i) => starForSave >= unlockStar ? (currentHabitLevels[i]||1) : 1);
   const obj = {
     id: id || ('d_'+Date.now()+Math.floor(Math.random()*1000)),
     name,
@@ -901,9 +958,10 @@ async function saveDragon(){
     damage: document.getElementById('f_damage').value,
     power: Number(document.getElementById('f_power').value)||0,
     capacity: document.getElementById('f_capacity').value ? Number(document.getElementById('f_capacity').value) : null,
-    star: Number(document.getElementById('f_star').value)||1,
+    star: starForSave,
     reign: Number(document.getElementById('f_reign').value)||1,
     affinities,
+    habitLevels,
     affinity: {type:'none', mode:'neutral', amount:0}, // legacy fallback field, unused when affinities is present
     abilities: document.getElementById('f_abilities').value.trim(),
     notes: document.getElementById('f_notes').value.trim(),
@@ -999,6 +1057,8 @@ async function applyDefaultStarRank(){
 }
 
 const TROOP_TYPES = ['spearmen','cavalry','archers','shieldbearers','siege'];
+// Confirmed from real in-game Habit Levels panels: Habit N unlocks at Star Rank 2N.
+const HABIT_UNLOCK_STARS = [2, 4, 6, 8, 10];
 
 function inferFlankRole(raw){
   const role = (raw.role||'').toLowerCase();
@@ -1046,7 +1106,11 @@ function transformRawDragon(raw){
       rightFlankPhysicalBuff: vg.rightPhysical||0,
       leftFlankTacticalBuff: vg.leftTactical||0,
       leftFlankFireBuff: vg.leftFire||0
-    }
+    },
+    // Every dragon starts at Level 1 on whichever habits its star rank has
+    // unlocked (Habit N unlocks at ★2N) — preserved if already present (e.g.
+    // re-importing your own previously-exported roster), otherwise defaulted.
+    habitLevels: (Array.isArray(raw.habitLevels) && raw.habitLevels.length===5) ? raw.habitLevels : [1,1,1,1,1],
   };
 }
 
